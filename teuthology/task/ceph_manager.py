@@ -5,6 +5,8 @@ import re
 import gevent
 import json
 
+import teuthology.misc as teuthology
+
 class Thrasher(gevent.Greenlet):
     def __init__(self, manager, config, logger=None):
         self.ceph_manager = manager
@@ -329,3 +331,101 @@ class CephManager:
                     'failed to reach quorum size %d before timeout expired' % size
             time.sleep(3)
         self.log("quorum is size %d" % size)
+
+class FakeCephManager:
+    def __init__(self, controller, ctx=None, logger=None):
+        self.ctx = ctx
+        self.controller = controller
+        if (logger):
+            self.log = lambda x: logger.info(x)
+        else:
+            def tmp(x):
+                print x
+            self.log = tmp
+
+    def raw_cluster_cmd(self, *args):
+        return ''
+
+    def raw_cluster_status(self):
+        return self.raw_cluster_cmd('-s')
+
+    def raw_osd_status(self):
+        return self.raw_cluster_cmd('osd', 'dump')
+
+    def get_osd_status(self):
+        osds = map(int, teuthology.all_roles_of_type(self.ctx.cluster, 'osd'))
+        dead_osds = [int(x.id_) for x in
+                     filter(lambda x: not x.running(), self.ctx.daemons.iter_daemons_of_role('osd'))]
+        live_osds = [int(x.id_) for x in
+                     filter(lambda x: x.running(), self.ctx.daemons.iter_daemons_of_role('osd'))]
+        return { 'in' : osds, 'out' : [], 'up' : osds,
+                 'down' : [], 'dead' : dead_osds, 'live' : live_osds, 'raw' : '' }
+
+    def get_num_pgs(self):
+        pass
+
+    def get_pg_stats(self):
+        pass
+
+    def get_osd_dump(self):
+        pass
+
+    def get_num_unfound_objects(self):
+        pass
+
+    def get_num_active_clean(self):
+        pass
+
+    def get_num_active(self):
+        pass
+
+    def is_clean(self):
+        pass
+
+    def wait_till_clean(self, timeout=None):
+        pass
+
+    def osd_is_up(self, osd):
+        return True
+
+    def wait_till_osd_is_up(self, osd, timeout=None):
+        pass
+
+    def is_active(self):
+        pass
+
+    def wait_till_active(self, timeout=None):
+        pass
+
+    def mark_out_osd(self, osd):
+        self.raw_cluster_cmd('osd', 'out', str(osd))
+
+    def kill_osd(self, osd):
+        self.ctx.daemons.get_daemon('osd', osd).stop()
+
+    def revive_osd(self, osd):
+        self.ctx.daemons.get_daemon('osd', osd).restart()
+
+    def mark_down_osd(self, osd):
+        self.raw_cluster_cmd('osd', 'down', str(osd))
+
+    def mark_in_osd(self, osd):
+        self.raw_cluster_cmd('osd', 'in', str(osd))
+
+
+    ## monitors
+
+    def kill_mon(self, mon):
+        self.ctx.daemons.get_daemon('mon', mon).stop()
+
+    def revive_mon(self, mon):
+        self.ctx.daemons.get_daemon('mon', mon).restart()
+
+    def get_mon_status(self, mon):
+        pass
+
+    def get_mon_quorum(self):
+        pass
+
+    def wait_for_mon_quorum_size(self, size, timeout=300):
+        pass

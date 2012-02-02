@@ -67,11 +67,18 @@ def task(ctx, config):
     log.info('Beginning thrashosds...')
     first_mon = teuthology.get_first_mon(ctx, config)
     (mon,) = ctx.cluster.only(first_mon).remotes.iterkeys()
-    manager = ceph_manager.CephManager(
-        mon,
-        ctx=ctx,
-        logger=log.getChild('ceph_manager'),
-        )
+    if config.get('fake', False):
+        manager = ceph_manager.FakeCephManager(
+            mon,
+            ctx=ctx,
+            logger=log.getChild('ceph_manager'),
+            )
+    else:
+        manager = ceph_manager.CephManager(
+            mon,
+            ctx=ctx,
+            logger=log.getChild('ceph_manager'),
+            )
     thrash_proc = ceph_manager.Thrasher(
         manager,
         config,
