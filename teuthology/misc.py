@@ -421,10 +421,13 @@ def get_first_mon(ctx, config):
     assert firstmon
     return firstmon
 
-def replace_all_with_clients(cluster, config):
+def replace_all_with_roles(cluster, config, valid_role):
     """
-    Converts a dict containing a key all to one
-    mapping all clients to the value of config['all']
+    Converts a dict containing a key 'all' to one mapping all roles
+    for which valid_role is true to the value of config['all'].
+
+    valid_role should return whether a role should be included,
+    i.e. is_type('client').
     """
     assert isinstance(config, dict), 'config must be a dict'
     if 'all' not in config:
@@ -432,8 +435,9 @@ def replace_all_with_clients(cluster, config):
     norm_config = {}
     assert len(config) == 1, \
         "config cannot have 'all' and specific clients listed"
-    for client in all_roles_of_type(cluster, 'client'):
-        norm_config['client.{id}'.format(id=client)] = config['all']
+    for roles_for_host in cluster.remotes.itervalues():
+        for role in filter(valid_role, roles_for_host):
+            norm_config[role] = config['all']
     return norm_config
 
 def deep_merge(a, b):

@@ -382,7 +382,11 @@ def task(ctx, config):
         config = { all: None }
     norm_config = config
     if isinstance(config, dict):
-        norm_config = teuthology.replace_all_with_clients(ctx.cluster, config)
+        norm_config = teuthology.replace_all_with_roles(
+            ctx.cluster,
+            config,
+            teuthology.is_type('client')
+            )
     if isinstance(norm_config, dict):
         role_images = {}
         for role, properties in norm_config.iteritems():

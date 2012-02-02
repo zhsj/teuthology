@@ -56,7 +56,8 @@ def task(ctx, config):
     """
     assert isinstance(config, dict), \
         'admin_socket task requires a dict for configuration'
-    teuthology.replace_all_with_clients(ctx.cluster, config)
+    teuthology.replace_all_with_roles(ctx.cluster, config,
+                                      teuthology.is_type('client'))
 
     with parallel() as p:
         for client, tests in config.iteritems():

@@ -35,7 +35,8 @@ def task(ctx, config):
             all: [dbench]
     """
     assert isinstance(config, dict)
-    config = teuthology.replace_all_with_clients(ctx.cluster, config)
+    config = teuthology.replace_all_with_roles(ctx.cluster, config,
+                                               teuthology.is_type('client'))
     log.info('Setting up autotest...')
     with parallel() as p:
         for role in config.iterkeys():
