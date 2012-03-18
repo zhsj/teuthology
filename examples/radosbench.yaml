@@ -1,0 +1,58 @@
+interactive-on-error: true
+overrides:
+  ceph:
+    branch: master
+    fs: xfs
+roles:
+- - mon.a
+  - osd.0
+  - mds.a
+- - mon.b
+  - osd.1
+- - mon.c
+  - osd.2
+- - bench1osd
+  - bench2osd
+  - bench3osd
+- - bench2osd
+  - bench3osd
+- - bench3osd
+tasks:
+- ceph: null
+- radosbench:
+    email:
+      to: <recipient@host.com>
+      server: <smtp.server.com>
+      user: <user>
+      password: <password>
+    roles:
+      bench1osd:
+        pool: data
+        bench:
+          mode: write
+          duration: 60
+          concurrent_operations: 24
+          op_size: 1000000
+      bench2osd:
+        pool: data
+        bench:
+          mode: write
+          duration: 60
+          concurrent_operations: 12
+          op_size: 1000000
+      bench3osd:
+        pool: data
+        bench:
+          mode: write
+          duration: 60
+          concurrent_operations: 8
+          op_size: 1000000
+
+targets:
+  ubuntu@<host1>: ssh-rsa <host1 key>
+  ubuntu@<host2>: ssh-rsa <host2 key>
+  ubuntu@<host3>: ssh-rsa <host3 key>
+  ubuntu@<host4>: ssh-rsa <host4 key>
+  ubuntu@<host5>: ssh-rsa <host5 key>
+  ubuntu@<host6>: ssh-rsa <host6 key>
+
