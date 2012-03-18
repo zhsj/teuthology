@@ -133,19 +133,25 @@ def configure(ctx, config):
 @contextlib.contextmanager
 def run_tests(ctx, config):
     assert isinstance(config, dict)
-    for client, client_config in config.iteritems():
-        (remote,) = ctx.cluster.only(client).remotes.keys()
-        conf = teuthology.get_file(remote, '/tmp/cephtest/archive/s3readwrite.{client}.config.yaml'.format(client=client))
+    for role, role_config in config.iteritems():
+        (remote,) = ctx.cluster.only(role).remotes.keys()
+        conf = teuthology.get_file(remote, '/tmp/cephtest/archive/s3readwrite.{role}.config.yaml'.format(role=role))
         args = [
                 '/tmp/cephtest/s3-tests/virtualenv/bin/s3tests-test-readwrite',
                 ]
-        if client_config is not None and 'extra_args' in client_config:
-            args.extend(client_config['extra_args'])
-
-        ctx.cluster.only(client).run(
-            args=args,
-            stdin=conf,
-            )
+        if role_config is not None and 'extra_args' in role_config:
+            args.extend(role_config['extra_args'])
+        cluster=ctx.cluster.only(role)
+        nodes = {}
+        for remote in cluster.remotes.iterkeys():
+            proc = remote.run(args=args, stdin=conf, wait=False)
+            nodes[remote.name] = proc
+        for name, proc in nodes.iteritems():
+            proc.exitstatus.get()
+#        ctx.cluster.only(client).run(
+#            args=args,
+#            stdin=conf,
+#            )
     yield
 
 
