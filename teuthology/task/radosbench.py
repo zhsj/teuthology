@@ -1,138 +1,77 @@
 import contextlib
 import logging
-import yaml
-import os
-import errno
-import re
 
-from email.Utils import formatdate
-from teuthology import teuthology_email
-from teuthology import teuthology_report
-from teuthology import misc as teuthology
-from teuthology import contextutil
 from ..orchestra import run
 
 log = logging.getLogger(__name__)
 
 @contextlib.contextmanager
-def parallel_test(ctx, config):
-    """Executing parallel radosbench tests..."""
-    out_path = '/tmp/cephtest/archive/perf/radosbench'
-    report = teuthology_report.TeuthologyReport('Radosbench Task Results Summary')
-    roles = config.get('roles', {})
-
-    attachments = {};
-    for role, options in roles.iteritems():
-        cluster = ctx.cluster.only(role)
-        bench_options = options.get('bench', {})
-
-        pool = str(options.get('pool', 'data'))
-        op_size = str(bench_options.get('op_size', 1000000))
-        duration = str(bench_options.get('duration', 60))
-        mode = str(bench_options.get('mode', 'write'))
-        concurrent_ops = str(bench_options.get('concurrent_operations', 16))
-
-        header = 'Running test on hosts with role "%s"' % role
-        log.info(header)
-        section = report.add_section(header)
-        section.header.append('')
-        section.header.append('mode: %s' % mode)
-        section.header.append('duration: %s' % duration)
-        section.header.append('concurrent instances: %s' % len(cluster.remotes))
-        section.header.append('concurrent operations per instance: %s' % concurrent_ops)
-        section.header.append('pool: %s' % pool)
-
-        args = [
-            'mkdir', '-p', '-m0755', '--', out_path, run.Raw('&&'),
-            'CEPH_CONF=/tmp/cephtest/ceph.conf',
-            'LD_LIBRARY_PATH=/tmp/cephtest/binary/usr/local/lib',
-            '/tmp/cephtest/binary/usr/local/bin/rados',
-            '-p', pool, '-b', op_size, 'bench', duration, mode, '-t', concurrent_ops
-            ]
-
-        nodes = {}
-        for remote in cluster.remotes.iterkeys():
-            """Call remote.run with 'wait=False' so it returns immediately."""
-            proc = remote.run(
-                args = args + [run.Raw('|'), 'tee', '%s/%s.out' % (out_path, role)], 
-                stdout=run.PIPE,
-                wait=False,
-                )
-            nodes[remote.name] = proc
-            
-        for name, proc in nodes.iteritems():
-            """Wait for each process to finish before moving on."""
-            proc.exitstatus.get()
-
-        total_throughput = 0
-        tgz_files = {}
-        for name, proc in nodes.iteritems():
-            lines = []
-            for line in proc.stdout:
-                lines.append(line) 
-                if 'Bandwidth' in line:
-                    line = line.rstrip('\r\n')
-                    log.info(line)
-                    section.lines.append(line)
-                    try:
-                        current_throughput = float(re.findall(r'[\w.]+', line)[-1])
-                    except ValueError:
-                        log.error("Not a numeric string.")
-                    total_throughput += current_throughput
-#            file_name = '%s_%s.out' % (role, name)
-            tgz_files['%s_%s.out' % (role, name)] = os.linesep.join(lines)
-#            log.info(tgz_files)
-        tgz = teuthology_email.create_tgz(tgz_files)
-#        log.info(len(tgz.read()))
-        attachments['%s.tgz' % role] = tgz 
-             
-        line = 'Aggregate (MB/sec):    %s' % total_throughput
-        log.info(line)
-        section.lines.append('-' * 32)
-        section.lines.append(line)
-
-    send_report(
-        message = str(report),
-        attachments = attachments,
-        email_config = config.get('email', {})
-        )
-    yield
-
-def send_report(message = '', attachments = {}, email_config = {}):
-    FROM = str(email_config.get('from', None))
-    TO = str(email_config.get('to', None))
-    SERVER = str(email_config.get('server', None))
-    USER = str(email_config.get('user', None))
-    PASSWORD = str(email_config.get('password', None))
-    SUBJECT = 'Teuthology Rados Bench Report - %s' % formatdate(localtime=True)
-    teuthology_email.send_email(FROM=FROM, 
-                                TO=TO, 
-                                SERVER=SERVER, 
-                                USER=USER, 
-                                PASSWORD=PASSWORD, 
-                                TEXT=message,
-                                SUBJECT=SUBJECT,
-                                ATTACHMENTS=attachments,
-        )
-
-
-
-@contextlib.contextmanager
 def task(ctx, config):
-    """This is the main body of the task that gets run."""
+    """
+    Run radosbench
 
-    """Take car of some yaml parsing here"""
-#    if config is not None and not isinstance(config, list) and not isinstance(config, dict):
-#        assert(false), "task parallel_example only supports a list or dictionary for configuration"
-#    if config is None:
-#        config = ['client.{id}'.format(id=id_)
-#                  for id_ in teuthology.all_roles_of_type(ctx.cluster, 'client')] 
-#    if isinstance(config, list):
-#        config = dict.fromkeys(config)
-#    clients = config.keys()
+    The config should be as follows:
 
-    """Run Multiple contextmanagers sequentially by nesting them."""
-    with contextutil.nested(
-        lambda: parallel_test(ctx=ctx, config=config),
-        ):
+    radosbench:
+        clients: [client list]
+        time: <seconds to run>
+
+    example:
+
+    tasks:
+    - ceph:
+    - radosbench:
+        clients: [client.0]
+        time: 360
+    - interactive:
+    """
+    log.info('Beginning radosbench...')
+    assert isinstance(config, dict), \
+        "please list clients to run on"
+    radosbench = {}
+
+    for role in config.get('clients', ['client.0']):
+        assert isinstance(role, basestring)
+        out_path = '/tmp/cephtest/archive/performance/radosbench'
+        PREFIX = 'client.'
+        assert role.startswith(PREFIX)
+        id_ = role[len(PREFIX):]
+        (remote,) = ctx.cluster.only(role).remotes.iterkeys()
+
+        op_size = str(config.get('op_size', ''))
+        op_size_opt = '-b' if op_size else ''
+        concurrent_ops = str(config.get('concurrent_ops', ''))
+        concurrent_ops_opt = '-t' if concurrent_ops else ''
+        args = []
+        args.extend(['mkdir', '-p', '-m0755', '--', out_path])
+        args.extend([run.Raw('&&')])
+        args.extend([
+            'LD_LIBRARY_PATH=/tmp/cephtest/binary/usr/local/lib',
+            '/tmp/cephtest/enable-coredump',
+            '/tmp/cephtest/binary/usr/local/bin/ceph-coverage',
+            '/tmp/cephtest/archive/coverage',
+            '/tmp/cephtest/binary/usr/local/bin/rados',
+            '-c', '/tmp/cephtest/ceph.conf',
+            '-k', '/tmp/cephtest/data/{role}.keyring'.format(role=role),
+            '--name', role,
+            '-p', str(config.get('pool', 'data')),
+            op_size_opt, op_size, 
+            'bench', 
+            str(config.get('time', 360)),
+            str(config.get('mode', 'write')),
+            concurrent_ops_opt, concurrent_ops,
+            run.Raw('|'), 'tee', '%s/%s.out' % (out_path, role)
+            ]),
+        proc = remote.run(
+            args=args,
+            logger=log.getChild('radosbench.{id}'.format(id=id_)),
+            stdin=run.PIPE,
+            wait=False,
+            )
+        radosbench[id_] = proc
+
+    try:
         yield
+    finally:
+        log.info('joining radosbench')
+        run.wait(radosbench.itervalues())
