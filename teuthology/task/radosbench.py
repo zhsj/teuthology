@@ -38,30 +38,41 @@ def task(ctx, config):
         id_ = role[len(PREFIX):]
         (remote,) = ctx.cluster.only(role).remotes.iterkeys()
 
-        op_size = str(config.get('op_size', ''))
-        op_size_opt = '-b' if op_size else ''
-        concurrent_ops = str(config.get('concurrent_ops', ''))
-        concurrent_ops_opt = '-t' if concurrent_ops else ''
+#        op_size = str(config.get('op_size', ' '))
+#        op_size_opt = '-b' if op_size else ' '
+#        concurrent_ops = str(config.get('concurrent_ops', ''))
+#        concurrent_ops_opt = '-t' if concurrent_ops else ''
+
         args = []
         args.extend(['mkdir', '-p', '-m0755', '--', out_path])
         args.extend([run.Raw('&&')])
         args.extend([
-            'LD_LIBRARY_PATH=/tmp/cephtest/binary/usr/local/lib',
-            '/tmp/cephtest/enable-coredump',
-            '/tmp/cephtest/binary/usr/local/bin/ceph-coverage',
-            '/tmp/cephtest/archive/coverage',
-            '/tmp/cephtest/binary/usr/local/bin/rados',
-            '-c', '/tmp/cephtest/ceph.conf',
-            '-k', '/tmp/cephtest/data/{role}.keyring'.format(role=role),
-            '--name', role,
-            '-p', str(config.get('pool', 'data')),
-            op_size_opt, op_size, 
-            'bench', 
-            str(config.get('time', 360)),
-            str(config.get('mode', 'write')),
-            concurrent_ops_opt, concurrent_ops,
-            run.Raw('|'), 'tee', '%s/%s.out' % (out_path, role)
-            ]),
+                'LD_LIBRARY_PATH=/tmp/cephtest/binary/usr/local/lib',
+                '/tmp/cephtest/enable-coredump',
+                '/tmp/cephtest/binary/usr/local/bin/ceph-coverage',
+                '/tmp/cephtest/archive/coverage',
+                '/tmp/cephtest/binary/usr/local/bin/rados',
+                '-c', '/tmp/cephtest/ceph.conf',
+                '-k', '/tmp/cephtest/data/{role}.keyring'.format(role=role),
+                '--name', role,
+                '-p', str(config.get('pool', 'data'))
+                ]
+            )
+
+        op_size = str(config.get('op_size', ''))
+        if op_size: args.extend(['-b', op_size])
+
+        args.extend([
+                'bench',
+                str(config.get('time', 360)),
+                str(config.get('mode', 'write')),
+                ]
+            )
+        concurrent_ops = str(config.get('concurrent_ops', ''))
+        if concurrent_ops: args.extend(['-t', concurrent_ops])
+
+        args.extend([run.Raw('|'), 'tee', '%s/%s.out' % (out_path, role)])
+
         proc = remote.run(
             args=args,
             logger=log.getChild('radosbench.{id}'.format(id=id_)),
@@ -69,6 +80,7 @@ def task(ctx, config):
             wait=False,
             )
         radosbench[id_] = proc
+
 
     try:
         yield
