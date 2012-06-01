@@ -81,6 +81,8 @@ combination, and will override anything in the suite.
         )
     base_arg = []
     if args.archive:
+       if not os.path.exists(args.archive):
+           os.makedirs(args.archive)
        base_arg.extend([
            os.path.join(os.path.dirname(sys.argv[0]), 'teuthology'),
            ])
@@ -105,26 +107,31 @@ combination, and will override anything in the suite.
         for collection in args.collections
         ]
 
-    for collection, collection_name in sorted(collections):
-        log.info('Collection %s in %s' % (collection_name, collection))
-        if args.archive:
-            os.makedirs(os.path.join(args.archive, collection_name))
+    #FIXME: Find a nicer way to get the number of combinations.
+    combinations = 1
+    if args.archive:
+        for collection, collection_name in sorted(collections):
+            facets = [
+                f for f in sorted(os.listdir(collection))
+                if not f.startswith('.')
+                and os.path.isdir(os.path.join(collection, f))
+                ]
 
+            for f in facets:
+                fc = 0
+                for name in sorted(os.listdir(os.path.join(collection, f))):
+                    if not name.startswith('.') and name.endswith('.yaml'):
+                        fc += 1
+                combinations *= fc
+
+    job_num = 0
+    for collection, collection_name in sorted(collections):
         facets = [
             f for f in sorted(os.listdir(collection))
             if not f.startswith('.')
             and os.path.isdir(os.path.join(collection, f))
             ]
 
-        permutations = 1 
-        #FIXME: Find a better way to count permutations and make the generator. 
-        for f in facets:
-            fp = 0
-            for name in sorted(os.listdir(os.path.join(collection, f))):
-                if not name.startswith('.') and name.endswith('.yaml'):
-                    fp += 1
-            permutations *= fp
- 
         facet_configs = (
             [(f, name, os.path.join(collection, f, name))
              for name in sorted(os.listdir(os.path.join(collection, f)))
@@ -134,36 +141,47 @@ combination, and will override anything in the suite.
             for f in facets
             )
 
-        tasknum = 0
         for configs in itertools.product(*facet_configs):
             description = 'collection:%s ' % (collection_name);
             description += ' '.join('{facet}:{name}'.format(
                     facet=facet, name=name)
                                  for facet, name, path in configs)
-            log.info(
-                'Running test with facets %s', description
-                )
+
+            log.info('Running test with facets %s', description)
+
             arg = copy.deepcopy(base_arg)
             if args.archive:
-                arg.extend([
-                        '--archive',
-                        os.path.join(
-                            args.archive, 
-                            collection_name, 
-                            'task%0*d' % (len(str(permutations)), tasknum)
-                            )
-                        ])
-            arg.extend([
-                    '--description', description,
-                    '--',
-                    ])
-
+                job_dir ='%0*d' % (len(str(combinations)), job_num)
+                archive_dir = os.path.join(args.archive, job_dir)
+                if os.path.exists(archive_dir):
+                    summary_file = os.path.join(archive_dir, 'summary.yaml')
+                    if os.path.exists(summary_file):
+                        log.info('Summary file found in %s, skipping.' % archive_dir)
+                        job_num += 1
+                        continue 
+                    else:
+                       i = 0
+                       bak_dir = os.path.join(
+                           args.archive,
+                           '.%s.bak' % job_dir
+                           )
+                       while os.path.exists(bak_dir):
+                           i += 1
+                           bak_dir = os.path.join(
+                               args.archive,
+                               '.%s.bak.%d' % (job_dir, i)
+                           )
+                       log.info('%s exists with no summary file.  Moving to %s' (job_dir, bak_dir))
+                       os.rename(job_dir, bak_dir)
+ 
+                arg.extend(['--archive', archive_dir])
+            arg.extend(['--description', description, '--',])
             arg.extend(args.config)
             arg.extend(path for facet, name, path in configs)
-            subprocess.check_call(
-                args=arg,
-                )
-            tasknum += 1
+
+            subprocess.check_call(args=arg)
+            job_num += 1
+
     if not args.archive:
         arg = copy.deepcopy(base_arg)
         arg.append('--last-in-suite')

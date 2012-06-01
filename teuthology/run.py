@@ -91,7 +91,6 @@ def main():
 
     if ctx.archive is not None:
         os.mkdir(ctx.archive)
-
         handler = logging.FileHandler(
             filename=os.path.join(ctx.archive, 'teuthology.log'),
             )
