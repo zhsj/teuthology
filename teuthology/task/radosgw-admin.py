@@ -338,6 +338,33 @@ def task(ctx, config):
         assert entry['successful_ops'] > 0
         assert entry['user'] == user
 
+
+    # TESTCASE 'usage-show3' 'usage' 'show' 'user usage with specified time' 'succeeds'
+
+    bucket_entry = out['entries'][0]['buckets']
+    epoch = bucket_entry[0]['epoch']
+
+    epoch_utc = time.gmtime(epoch)
+    pre_epoch_utc = time.gmtime(epoch - 1)
+    post_epoch_utc = time.gmtime(epoch + 1)
+
+    epoch_str = time.strftime("%Y-%m-%d %H:%M:%S", epoch_utc)
+    post_epoch_str = time.strftime("%Y-%m-%d %H:%M:%S", post_epoch_utc)
+    pre_epoch_str = time.strftime("%Y-%m-%d %H:%M:%S", pre_epoch_utc)
+
+    (err, out) = rgwadmin(ctx, client, ['usage', 'show', '--uid', user, '--start-date', epoch_str, '--end-date', post_epoch_str])
+    assert not err
+    assert len(out['entries']) > 0
+    assert len(out['summary']) > 0
+    for entry in out['summary']:
+        assert entry['successful_ops'] > 0
+        assert entry['user'] == user
+
+    (err, out) = rgwadmin(ctx, client, ['usage', 'show', '--uid', user, '--start-date', pre_epoch_str, '--end-date', epoch_str])
+    assert not err
+    assert len(out['entries']) == 0
+    assert len(out['summary']) == 0
+
     # TESTCASE 'usage-trim' 'usage' 'trim' 'user usage' 'succeeds, usage removed'
     (err, out) = rgwadmin(ctx, client, ['usage', 'trim', '--uid', user])
     assert not err
