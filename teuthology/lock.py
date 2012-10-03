@@ -101,14 +101,10 @@ def _positive_int(string):
     return value
 
 def canonicalize_hostname(s, ctx):
-    user = ctx.teuthology_config['user']
-    if not user: user = ctx.teuthology_config['default-user']
-    if not user: user = 'ubuntu'
+    user = ctx.teuthology_config.get('user', 'ubuntu')
     if s.find('{u}@'.format(u=user)) == -1:
         s = '{u}@{h}'.format(u=user,h=s)
-    domain = ctx.teuthology_config['domain']
-    if not domain: domain = ctx.teuthology_config['default-domain']
-    if not domain: domain = 'front.sepia.ceph.com'
+    domain = ctx.teuthology_config.get('domain', 'front.sepia.ceph.com')
     if domain != 'none' and s.find(domain) == -1:
         s = s + '.' + domain
     return s
@@ -433,7 +429,7 @@ to run on, or use -a to check all of them automatically.
     for key_entry in out.splitlines():
         hostname, pubkey = key_entry.split(' ', 1)
         # TODO: separate out user
-        full_name = '{user}@{host}'.format(user=ctx.teuthology_config['user'],
+        full_name = '{user}@{host}'.format(user=ctx.teuthology_config.get('user', 'ubuntu'),
                                            host=hostname)
         log.info('Checking %s', full_name)
         assert full_name in current_locks, 'host is not in the database!'
