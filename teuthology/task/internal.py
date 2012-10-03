@@ -102,6 +102,11 @@ def check_lock(ctx, config):
     if ctx.config.get('check-locks') == False:
         log.info('Lock checking disabled.')
         return
+    if not ctx.config.get('lock_server'):
+        if len(ctx.config['targets']) == 0:
+            assert 0, 'lock_server not set, must specify targets in yaml config'
+        log.info('No lock_server set, disabling lock checking.')
+        return
     log.info('Checking locks...')
     for machine in ctx.config['targets'].iterkeys():
         status = lock.get_status(ctx, machine)
