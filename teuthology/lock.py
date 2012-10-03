@@ -100,9 +100,15 @@ def _positive_int(string):
             '{string} is not positive'.format(string=string))
     return value
 
-def canonicalize_hostname(s):
-    if re.match('ubuntu@.*\.front\.sepia\.ceph\.com', s) is None:
-        s = 'ubuntu@' + s + '.front.sepia.ceph.com'
+def canonicalize_hostname(s, ctx):
+    user = ctx.teuthology_config['user']
+    if not user: user = 'ubuntu'
+    if s.find('{u}@'.format(u=user)) == -1:
+        s = '{u}@{h}'.format(u=user,h=s)
+    domain = ctx.teuthology_config['domain']
+    if not domain: domain = 'front.sepia.ceph.com'
+    if domain != 'none' and s.find(domain) == -1:
+        s = s + '.' + domain
     return s
 
 def main():
@@ -226,7 +232,7 @@ Lock, unlock, or query lock status of machines.
 
     ret = 0
     user = ctx.owner
-    machines = [canonicalize_hostname(m) for m in ctx.machines]
+    machines = [canonicalize_hostname(m, ctx) for m in ctx.machines]
     machines_to_update = []
 
     if ctx.targets:
@@ -387,7 +393,7 @@ to run on, or use -a to check all of them automatically.
         assert not ctx.targets and not ctx.machines, \
             'You can\'t specify machines with the --all option'
 
-    machines = [canonicalize_hostname(m) for m in ctx.machines]
+    machines = [canonicalize_hostname(m, ctx) for m in ctx.machines]
 
     if ctx.targets:
         try:
@@ -425,7 +431,8 @@ to run on, or use -a to check all of them automatically.
     for key_entry in out.splitlines():
         hostname, pubkey = key_entry.split(' ', 1)
         # TODO: separate out user
-        full_name = 'ubuntu@{host}'.format(host=hostname)
+        full_name = '{user}@{host}'.format(user=ctx.teuthology_config['user'],
+                                           host=hostname)
         log.info('Checking %s', full_name)
         assert full_name in current_locks, 'host is not in the database!'
         if current_locks[full_name]['sshpubkey'] != pubkey:

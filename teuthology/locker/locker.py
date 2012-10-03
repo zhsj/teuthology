@@ -8,12 +8,15 @@ abspath = os.path.dirname(__file__)
 if abspath not in sys.path:
     sys.path.append(abspath)
 
-from api import Lock, MachineLock
+from api import Lock, MachineLock, MachineAdd
 
 urls = (
     '/lock', 'Lock',
+    '/add', 'MachineAdd',
     '/lock/(.*)', 'MachineLock',
     )
 
-app = web.application(urls, globals())
-application = app.wsgifunc()
+if __name__ == "__main__":
+    app = web.application(urls, globals())
+    application = app.wsgifunc()
+    app.run()

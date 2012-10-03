@@ -21,4 +21,4 @@ transactions, like InnoDB.
 import web
 
 # Change these values to the connection info for your database.
-DB = web.database(dbn='dbms', db='db', user='user', pw='password', host='host')
+DB = web.database(dbn='mysql', db='db', user='slang', pw='slang', host='localhost')

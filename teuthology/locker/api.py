@@ -110,3 +110,20 @@ class Lock:
 
         web.header('Content-type', 'text/json')
         return json.dumps(name_keys)
+
+class MachineAdd:
+    def POST(self):
+        machinename = web.input('name')['name']
+        pubkey = web.input('pubkey')['pubkey']
+        with DB.transaction():
+            results = list(DB.select('machine', what='*',
+                           where='name = $name',
+                           vars=dict(name=machinename)))
+            if not results:
+                # add ourselves to the list of machines
+                DB.insert('machine', name=machinename, up=True, locked=False, locked_by='',
+                                     locked_since=web.db.SQLLiteral('NOW()'),
+                                     description='', sshpubkey=pubkey)
+            else:
+                DB.update('machine', where='name = $name', vars=dict(name=machinename),
+                                     sshpubkey=pubkey)

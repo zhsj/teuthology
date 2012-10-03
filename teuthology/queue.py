@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import yaml
+import urllib
 
 import beanstalkc
 
@@ -63,8 +64,29 @@ describe. One job is run at a time.
                 path=ctx.archive_dir,
                 ))
 
+    from teuthology.lock import send_request
     from teuthology.misc import read_config
     read_config(ctx)
+
+    addurl = ctx.teuthology_config['lock_server'].replace("/lock", "/add")
+
+    # add ourselves to the list of machines
+    from socket import gethostname
+    from teuthology.lock import canonicalize_hostname
+    h=canonicalize_hostname(gethostname(), ctx)
+    args = ['ssh-keyscan']
+    _, m = h.rsplit('@')
+    args.extend([m])
+    print args
+    p = subprocess.Popen(
+        args=args,
+        stdout=subprocess.PIPE,
+        )
+    out, _ = p.communicate()
+    assert p.returncode == 0, 'ssh-keyscan failed'
+    # assumes just one line
+    _, key = out.splitlines()[0].split(' ', 1)
+    send_request('POST', addurl, urllib.urlencode(dict(name=h, pubkey=key)))
 
     beanstalk = connect(ctx)
     beanstalk.watch(ctx.tube)
