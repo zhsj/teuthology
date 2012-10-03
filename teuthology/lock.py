@@ -102,10 +102,12 @@ def _positive_int(string):
 
 def canonicalize_hostname(s, ctx):
     user = ctx.teuthology_config['user']
+    if not user: user = ctx.teuthology_config['default-user']
     if not user: user = 'ubuntu'
     if s.find('{u}@'.format(u=user)) == -1:
         s = '{u}@{h}'.format(u=user,h=s)
     domain = ctx.teuthology_config['domain']
+    if not domain: domain = ctx.teuthology_config['default-domain']
     if not domain: domain = 'front.sepia.ceph.com'
     if domain != 'none' and s.find(domain) == -1:
         s = s + '.' + domain
