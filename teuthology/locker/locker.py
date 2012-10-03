@@ -16,7 +16,9 @@ urls = (
     '/lock/(.*)', 'MachineLock',
     )
 
+app = web.application(urls, globals())
+
 if __name__ == "__main__":
-    app = web.application(urls, globals())
-    application = app.wsgifunc()
     app.run()
+else:
+    application = app.wsgifunc()
