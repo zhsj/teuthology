@@ -81,13 +81,13 @@ def task(ctx, config):
     with parallel() as p:
         for role, tests in clients.iteritems():
             if role != "all":
-                p.spawn(_run_tests, ctx, refspec, role, tests, config.get('env'))
+                p.spawn(_run_tests, ctx, refspec, role, tests, config.get('env'), config.get('valgrind'))
             else:
                 all_spec = True
 
     if all_spec:
         all_tasks = clients["all"]
-        _spawn_on_all_clients(ctx, refspec, all_tasks, config.get('env'), config.get('subdir'))
+        _spawn_on_all_clients(ctx, refspec, all_tasks, config.get('env'), config.get('valgrind'), config.get('subdir'))
 
 def _make_scratch_dir(ctx, role, subdir):
     PREFIX = 'client.'
@@ -116,7 +116,7 @@ def _make_scratch_dir(ctx, role, subdir):
             ],
         )
 
-def _spawn_on_all_clients(ctx, refspec, tests, env, subdir):
+def _spawn_on_all_clients(ctx, refspec, tests, env, valgrind, subdir):
     client_generator = teuthology.all_roles_of_type(ctx.cluster, 'client')
     client_remotes = list()
     for client in client_generator:
@@ -127,9 +127,9 @@ def _spawn_on_all_clients(ctx, refspec, tests, env, subdir):
     for unit in tests:
         with parallel() as p:
             for remote, role in client_remotes:
-                p.spawn(_run_tests, ctx, refspec, role, [unit], env, subdir)
+                p.spawn(_run_tests, ctx, refspec, role, [unit], env, valgrind, subdir)
 
-def _run_tests(ctx, refspec, role, tests, env, subdir=None):
+def _run_tests(ctx, refspec, role, tests, env, valgrind, subdir=None):
     assert isinstance(role, basestring)
     PREFIX = 'client.'
     assert role.startswith(PREFIX)
@@ -212,6 +212,15 @@ def _run_tests(ctx, refspec, role, tests, env, subdir=None):
                         '/tmp/cephtest/enable-coredump',
                         '/tmp/cephtest/binary/usr/local/bin/ceph-coverage',
                         '/tmp/cephtest/archive/coverage',
+                        ])
+                if valgrind is not None:
+                    args.extend(
+                        teuthology.get_valgrind_args(
+                            '',
+                            valgrind,
+                            )
+                        )
+                args.extend([
                         '{srcdir}/{workunit}'.format(
                             srcdir=srcdir,
                             workunit=workunit,
