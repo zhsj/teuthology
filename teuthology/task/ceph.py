@@ -41,12 +41,16 @@ class DaemonState(object):
         self.proc = None
         self.log.info('Stopped')
 
-    def restart(self):
+    def restart(self, *args, **kwargs):
         self.log.info('Restarting')
         if self.proc is not None:
             self.log.debug('stopping old one...')
             self.stop()
-        self.proc = self.remote.run(*self.command_args, **self.command_kwargs)
+        cmd_args = list(self.command_args)
+        cmd_args.extend(args)
+        cmd_kwargs = self.command_kwargs
+        cmd_kwargs.update(kwargs)
+        self.proc = self.remote.run(*cmd_args, **cmd_kwargs)
         self.log.info('Started')
 
     def running(self):
@@ -839,7 +843,7 @@ def run_daemon(ctx, config, type_):
         for id_ in teuthology.roles_of_type(roles_for_host, type_):
             name = '%s.%s' % (type_, id_)
 
-            if not id_.endswith('-s'):
+            if not (id_.endswith('-s') or id_[:-1].endswith('-s-r')):
                 num_active += 1
 
             run_cmd = [
@@ -868,6 +872,10 @@ def run_daemon(ctx, config, type_):
                 run_cmd.extend([ 'env', 'CPUPROFILE=%s' % profile_path ])
 
             run_cmd.extend(run_cmd_tail)
+
+            if id_[:-1].endswith('-s-r'):
+                run_cmd.extend(['--hot-standby', id_[-1]])
+
             ctx.daemons.add_daemon(remote, type_, id_,
                                    args=run_cmd,
                                    logger=log.getChild(name),

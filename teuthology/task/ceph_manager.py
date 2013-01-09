@@ -605,3 +605,44 @@ class CephManager:
                     'failed to reach quorum size %d before timeout expired' % size
             time.sleep(3)
         self.log("quorum is size %d" % size)
+
+
+    ## metadata servers
+
+    def kill_mds(self, mds):
+        self.ctx.daemons.get_daemon('mds', mds).stop()
+
+    def kill_mds_by_rank(self, rank):
+        status = self.get_mds_status_by_rank(rank)
+        self.ctx.daemons.get_daemon('mds', status['name']).stop()
+
+    def revive_mds(self, mds, standby_for_rank=None):
+        args = []
+        if standby_for_rank:
+          args.extend(['--hot-standby', standby_for_rank])
+        self.ctx.daemons.get_daemon('mds', mds).restart(*args)
+
+    def revive_mds_by_rank(self, rank, standby_for_rank=None):
+        args = []
+        if standby_for_rank:
+          args.extend(['--hot-standby', standby_for_rank])
+        status = self.get_mds_status_by_rank(rank)
+        self.ctx.daemons.get_daemon('mds', status['name']).restart(*args)
+
+    def get_mds_status(self, mds):
+        out = self.raw_cluster_cmd('mds', 'dump', '--format=json')
+        j = json.loads(' '.join(out.splitlines()[1:]))
+        # collate; for dup ids, larger gid wins.
+        for info in j['info'].itervalues():
+          if info['name'] == mds:
+              return info
+        return None
+
+    def get_mds_status_by_rank(self, rank):
+        out = self.raw_cluster_cmd('mds', 'dump', '--format=json')
+        j = json.loads(' '.join(out.splitlines()[1:]))
+        # collate; for dup ids, larger gid wins.
+        for info in j['info'].itervalues():
+          if info['rank'] == rank:
+              return info
+        return None
