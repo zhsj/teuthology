@@ -91,8 +91,16 @@ def task(ctx, config):
             '--name', 'client.{id}'.format(id=id_),
             '-c', '/tmp/cephtest/ceph.conf',
             # TODO ceph-fuse doesn't understand dash dash '--',
-            mnt,
+            # mnt,
             ]
+
+        if client_config.get('fuse-options') is not None:
+            run_cmd_tail.extend(
+                    #'--{foptions}'.format(foptions=client_config.get('fuse-options')),
+                    client_config.get('fuse-options'),
+                )
+
+        run_cmd_tail.append(mnt)
 
         if client_config.get('valgrind') is not None:
             run_cmd.extend(
@@ -102,7 +110,10 @@ def task(ctx, config):
                     )
                 )
 
+
         run_cmd.extend(run_cmd_tail)
+
+        log.info('fuse command: {cmd}'.format(cmd=run_cmd))
 
         proc = remote.run(
             args=run_cmd,
@@ -111,6 +122,8 @@ def task(ctx, config):
             wait=False,
             )
         fuse_daemons[id_] = proc
+        
+        log.info('Made it this far')
 
     for id_, remote in clients:
         mnt = os.path.join('/tmp/cephtest', 'mnt.{id}'.format(id=id_))
