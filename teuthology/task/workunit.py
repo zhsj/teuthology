@@ -106,14 +106,25 @@ def _delete_dir(ctx, role, subdir):
     PREFIX = 'client.'
     id_ = role[len(PREFIX):]
     (remote,) = ctx.cluster.only(role).remotes.iterkeys()
-    dir_owner = remote.shortname.split('@', 1)[0]
     mnt = os.path.join('/tmp/cephtest', 'mnt.{id}'.format(id=id_))
-
+    client = os.path.join(mnt, 'client.{id}'.format(id=id_))
     try:
         remote.run(
             args=[
                 'rm',
                 '-rf',
+                '--',
+                client,
+                ],
+            )
+        log.info("Deleted dir {dir}".format(dir=client))
+    except:
+        log.debug("Caught an execption deleting dir {dir}".format(dir=client))
+
+    try:
+        remote.run(
+            args=[
+                'rmdir',
                 '--',
                 mnt,
                 ],
@@ -144,11 +155,7 @@ def _make_scratch_dir(ctx, role, subdir):
     except:
         proc = remote.run(
             args=[
-                'sudo',
-                'install',
-                '-d',
-                '-m', '0755',
-                '--owner={user}'.format(user=dir_owner),
+                'mkdir',
                 '--',
                 mnt,
                 ],
