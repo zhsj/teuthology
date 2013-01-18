@@ -89,6 +89,46 @@ def task(ctx, config):
         all_tasks = clients["all"]
         _spawn_on_all_clients(ctx, refspec, all_tasks, config.get('env'), config.get('subdir'))
 
+    for role in clients.iterkeys():
+        assert isinstance(role, basestring)
+        if role == "all":
+            continue
+        PREFIX = 'client.'
+        assert role.startswith(PREFIX)
+        if created_dir_dict[role]:
+            _delete_dir(ctx, role, config.get('subdir'))
+
+def _delete_dir(ctx, role, subdir):
+    PREFIX = 'client.'
+    id_ = role[len(PREFIX):]
+    (remote,) = ctx.cluster.only(role).remotes.iterkeys()
+    mnt = os.path.join('/tmp/cephtest', 'mnt.{id}'.format(id=id_))
+    client = os.path.join(mnt, 'client.{id}'.format(id=id_))
+    try:
+        remote.run(
+            args=[
+                'rm',
+                '-rf',
+                '--',
+                client,
+                ],
+            )
+        log.info("Deleted dir {dir}".format(dir=client))
+    except:
+        log.debug("Caught an execption deleting dir {dir}".format(dir=client))
+
+    try:
+        remote.run(
+            args=[
+                'rmdir',
+                '--',
+                mnt,
+                ],
+            )
+        log.info("Deleted dir {dir}".format(dir=mnt))
+    except:
+        log.debug("Caught an execption deleting dir {dir}".format(dir=mnt))
+
 def _make_scratch_dir(ctx, role, subdir):
     PREFIX = 'client.'
     id_ = role[len(PREFIX):]
@@ -96,6 +136,28 @@ def _make_scratch_dir(ctx, role, subdir):
     (remote,) = ctx.cluster.only(role).remotes.iterkeys()
     dir_owner = remote.shortname.split('@', 1)[0]
     mnt = os.path.join('/tmp/cephtest', 'mnt.{id}'.format(id=id_))
+    # if neither kclient nor ceph-fuse are required for a workunit,
+    # mnt may not exist. Stat and create the directory if it doesn't.
+    try:
+        proc = remote.run(
+            args=[
+                'stat',
+                '--',
+                mnt,
+                ],
+            )
+        log.info('Did not need to create dir {dir}'.format(dir=mnt))
+    except:
+        proc = remote.run(
+            args=[
+                'mkdir',
+                '--',
+                mnt,
+                ],
+            )
+        log.info('Created dir {dir}'.format(dir=mnt))
+        retVal = True
+
     if not subdir: subdir = 'client.{id}'.format(id=id_)
     remote.run(
         args=[
