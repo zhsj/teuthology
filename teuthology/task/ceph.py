@@ -493,6 +493,8 @@ def cluster(ctx, config):
                 '/tmp/cephtest/binary/usr/local/bin/ceph-coverage',
                 coverage_dir,
                 '/tmp/cephtest/binary/usr/local/bin/osdmaptool',
+                '-c',
+                '/tmp/cephtest/ceph.conf',
                 '--clobber',
                 '--createsimple', '{num:d}'.format(
                     num=teuthology.num_instances_of_type(ctx.cluster, 'osd'),
@@ -1088,5 +1090,6 @@ def task(ctx, config):
         lambda: run_daemon(ctx=ctx, config=config, type_='osd'),
         lambda: run_daemon(ctx=ctx, config=config, type_='mds'),
         ):
-        healthy(ctx=ctx, config=None)
+        if config.get('wait-for-healthy', True):
+          healthy(ctx=ctx, config=None)
         yield
