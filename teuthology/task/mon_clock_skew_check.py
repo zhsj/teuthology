@@ -84,6 +84,16 @@ class ClockSkewCheck:
         s=self.check_interval))
       time.sleep(self.check_interval)
 
+  def print_skews(self, skews):
+    total = len(skews)
+    if total > 0:
+      self.info('---------- found {n} skews ----------'.format(n=total))
+      for mon_id,values in skews.iteritems():
+        self.info('mon.{id}: {v}'.format(id=mon_id,v=values))
+      self.info('-------------------------------------')
+    else:
+      self.info('---------- no skews were found ----------')
+
   def do_check(self):
     self.info('start checking for clock skews')
     skews = dict()
@@ -134,13 +144,13 @@ class ClockSkewCheck:
         mon_skew = float(check['skew'])
         mon_health = check['health']
         mon_id = check['name']
-        if mon_skew > self.max_skew:
+        if abs(mon_skew) > self.max_skew:
           assert mon_health == 'HEALTH_WARN', \
               'mon.{id} health is \'{health}\' but skew {s} > max {ms}'.format(
-                  id=mon_id,s=mon_skew,ms=self.max_skew)
+                  id=mon_id,s=abs(mon_skew),ms=self.max_skew)
 
           log_str = 'mon.{id} with skew {s} > max {ms}'.format(
-            id=mon_id,s=mon_skew,ms=self.max_skew)
+            id=mon_id,s=abs(mon_skew),ms=self.max_skew)
 
           """ add to skew list """
           details = check['details']
@@ -151,18 +161,13 @@ class ClockSkewCheck:
           else:
             self.warn('unexpected skew: {str}'.format(str=log_str))
 
-      if clean_check:
+      if clean_check or (self.expect_skew and len(skews) > 0):
         ran_once = True
+        self.print_skews(skews)
       self.sleep_interval()
 
     total = len(skews)
-    if total > 0:
-      self.info('---------- found {n} skews ----------'.format(n=total))
-      for mon_id,values in skews.iteritems():
-        self.info('mon.{id}: {v}'.format(id=mon_id,v=values))
-      self.info('-------------------------------------')
-    else:
-      self.info('---------- no skews were found ----------')
+    self.print_skews(skews)
 
     error_str = ''
     found_error = False
