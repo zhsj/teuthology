@@ -53,6 +53,11 @@ def task(ctx, config):
     elif isinstance(config, list):
         config = dict((name, None) for name in config)
 
+    # ensure at least one mds exists
+    if len(teuthology.all_roles_of_type(ctx.cluster, 'mds')) == 0:
+        log.error('ceph-fuse task requires at least one mds')
+        raise
+
     overrides = ctx.config.get('overrides', {})
     teuthology.deep_merge(config, overrides.get('ceph-fuse', {}))
 

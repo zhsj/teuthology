@@ -38,6 +38,12 @@ def task(ctx, config):
     if config is None:
         config = ['client.{id}'.format(id=id_)
                   for id_ in teuthology.all_roles_of_type(ctx.cluster, 'client')]
+
+    # ensure at least one mds exists
+    if len(teuthology.all_roles_of_type(ctx.cluster, 'mds')) == 0:
+        log.error('kclient task requires at least one mds')
+        raise
+
     clients = list(teuthology.get_clients(ctx=ctx, roles=config))
 
     testdir = teuthology.get_testdir(ctx)
