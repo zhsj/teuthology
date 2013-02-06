@@ -65,9 +65,8 @@ def parse_args():
 def shutdown_daemons(ctx, log):
     from .orchestra import run
     nodes = {}
-    for remote in ctx.cluster.remotes.iterkeys():
-        proc = remote.run(
-            args=[
+    reboot = []
+    unmount_args = [
                 'if', 'grep', '-q', 'ceph-fuse', '/etc/mtab', run.Raw(';'),
                 'then',
                 'grep', 'ceph-fuse', '/etc/mtab', run.Raw('|'),
@@ -75,7 +74,9 @@ def shutdown_daemons(ctx, log):
                 'grep', '-o', "/.* ", run.Raw('|'),
                 'xargs', 'sudo', 'fusermount', '-u', run.Raw(';'),
                 'fi',
-                run.Raw(';'),
+                ]
+
+    killall_args = [
                 'killall',
                 '--quiet',
                 'ceph-mon',
@@ -89,14 +90,56 @@ def shutdown_daemons(ctx, log):
                 'testrados',
                 run.Raw('||'),
                 'true', # ignore errors from ceph binaries not being found
-                ],
+                ]
+
+    for remote in ctx.cluster.remotes.iterkeys():
+        proc = remote.run(
+            args=unmount_args,
             wait=False,
-            )
-        nodes[remote.name] = proc
-    
-    for name, proc in nodes.iteritems():
-        log.info('Waiting for %s to finish shutdowns...', name)
-        proc.exitstatus.get()
+        )
+        try:
+            proc.exitstatus.get(timeout=20)
+        except gevent.Timeout:
+            # blow away the mount with the abort sysctl
+            # basically:  echo 1 > /sys/fs/fuse/connections/<last>/abort
+            # we need some cruft to make that work here though
+            remote.run(
+                args=[
+                    'echo', '1', run.Raw('>'), '/tmp/abortfile',
+                    ],
+                    )
+            remote.run(
+                args=[
+                    'sudo', 'ls', '/sys/fs/fuse/connections/', run.Raw('|'),
+                    'tail', '-n', '1', run.Raw('|'),
+                    'sudo', 'xargs', '-I', 'XX', 'cp', '/tmp/abortfile', '/sys/fs/fuse/connections/XX/abort',
+                    ],
+                    )
+            proc = remote.run(
+                args=unmount_args,
+                wait=False,
+                )
+            try:
+                proc.exitstatus.get(timeout=20)
+            except gevent.Timeout:
+                # give up and request reboot
+                reboot[remote] = remote
+
+        proc = remote.run(
+                args=killall_args,
+                wait=False,
+                )
+        nodes[remote] = proc
+
+    for r, proc in nodes.iteritems():
+        log.info('Waiting for %s to finish shutdowns...', r.name)
+        try:
+            proc.exitstatus.get(timeout=20)
+        except:
+            # request reboot
+            reboot[r] = r
+
+    return reboot
 
 def find_kernel_mounts(ctx, log):
     from .orchestra import run
@@ -112,12 +155,12 @@ def find_kernel_mounts(ctx, log):
             wait=False,
             )
         nodes[remote] = proc
-    kernel_mounts = list()
+    kernel_mounts = {}
     for remote, proc in nodes.iteritems():
         try:
             proc.exitstatus.get()
             log.debug('kernel mount exists on %s', remote.name)
-            kernel_mounts.append(remote)
+            kernel_mounts[remote] = remote
         except run.CommandFailedError: # no mounts!
             log.debug('no kernel mount on %s', remote.name)
     
@@ -130,7 +173,8 @@ def remove_kernel_mounts(ctx, kernel_mounts, log):
     """
     from .orchestra import run
     nodes = {}
-    for remote in kernel_mounts:
+    reboot = {}
+    for remote in kernel_mounts.iterkeys():
         log.info('clearing kernel mount from %s', remote.name)
         proc = remote.run(
             args=[
@@ -138,7 +182,7 @@ def remove_kernel_mounts(ctx, kernel_mounts, log):
                 'grep', '-o', "on /.* type", run.Raw('|'),
                 'grep', '-o', "/.* ", run.Raw('|'),
                 'xargs', '-r',
-                'sudo', 'umount', '-f', run.Raw(';'),
+                'sudo', 'umount', run.Raw(';'),
                 'fi'
                 ],
             wait=False
@@ -146,7 +190,13 @@ def remove_kernel_mounts(ctx, kernel_mounts, log):
         nodes[remote] = proc
 
     for remote, proc in nodes:
-        proc.exitstatus.get()
+        try:
+            proc.exitstatus.get(timeout=20)
+        except gevent.Timeout:
+            # mount hung, add to reboot list
+            reboot[remote] = remote
+
+    return reboot
 
 def remove_osd_mounts(ctx, log):
     """
@@ -154,33 +204,60 @@ def remove_osd_mounts(ctx, log):
     """
     from .orchestra import run
     from teuthology.misc import get_testdir
-    ctx.cluster.run(
-        args=[
-            'grep',
-            '{tdir}/data/'.format(tdir=get_testdir(ctx)),
-            '/etc/mtab',
-            run.Raw('|'),
-            'awk', '{print $2}', run.Raw('|'),
-            'xargs', '-r',
-            'sudo', 'umount', run.Raw(';'),
-            'true'
-            ],
-        )
+    nodes = {}
+    reboot = {}
+    for remote in ctx.cluster.remotes.iterkeys():
+        proc = ctx.cluster.run(
+            args=[
+                'grep',
+                '{tdir}/data/'.format(tdir=get_testdir(ctx)),
+                '/etc/mtab',
+                run.Raw('|'),
+                'awk', '{print $2}', run.Raw('|'),
+                'xargs', '-r',
+                'sudo', 'umount', run.Raw(';'),
+                'true'
+                ],
+            wait=False,
+            )
+        nodes[remote] = proc
+
+    for r, p in nodes.iteritems():
+        try:
+            p.exitstatus.get(timeout=20)
+        except gevent.Timeout:
+            reboot[r] = r
+
+    return reboot
 
 def remove_osd_tmpfs(ctx, log):
     """
     unmount tmpfs mounts
     """
     from .orchestra import run
-    ctx.cluster.run(
-        args=[
-            'egrep', 'tmpfs\s+/mnt', '/etc/mtab', run.Raw('|'),
-            'awk', '{print $2}', run.Raw('|'),
-            'xargs', '-r',
-            'sudo', 'umount', run.Raw(';'),
-            'true'
-            ],
-        )
+    nodes = {}
+    reboot = {}
+    for remote in ctx.cluster.remotes.iterkeys():
+        proc = ctx.cluster.run(
+                args=[
+                    'egrep', 'tmpfs\s+/mnt', '/etc/mtab', run.Raw('|'),
+                    'awk', '{print $2}', run.Raw('|'),
+                    'xargs', '-r',
+                    'sudo', 'umount', run.Raw(';'),
+                    'true'
+                    ],
+                wait=False,
+                )
+        nodes[remote] = proc
+
+    for r, p in nodes.iteritems():
+        try:
+            p.exitstatus.get(timeout=20)
+        except gevent.Timeout:
+            reboot[r] = r
+
+    return reboot
+
 
 def reboot(ctx, remotes, log):
     import time
@@ -392,28 +469,34 @@ def nuke_helper(ctx, log):
     connect(ctx, None)
 
     log.info('Unmount ceph-fuse and killing daemons...')
-    shutdown_daemons(ctx, log)
+    daemon_reboot = shutdown_daemons(ctx, log)
     log.info('All daemons killed.')
 
     log.info('Unmount any osd data directories...')
-    remove_osd_mounts(ctx, log)
+    osd_reboot = remove_osd_mounts(ctx, log)
 
     log.info('Unmount any osd tmpfs dirs...')
-    remove_osd_tmpfs(ctx, log)
+    tmpfs_reboot = remove_osd_tmpfs(ctx, log)
+
 
     log.info('Dealing with any kernel mounts...')
     kernel_mounts = find_kernel_mounts(ctx, log)
-    #remove_kernel_mounts(ctx, kernel_mounts, log)
-    need_reboot = kernel_mounts
+    kmount_reboot = remove_kernel_mounts(ctx, kernel_mounts, log)
+
+    need_reboot = list(set(daemon_reboot.items()+osd_reboot.items()+tmpfs_reboot.items()))
+
     if ctx.reboot_all:
         need_reboot = ctx.cluster.remotes.keys()
     reboot(ctx, need_reboot, log)
     log.info('All kernel mounts gone.')
 
     log.info('Synchronizing clocks...')
+    # all rebooted nodes need clocks resynced
+    sync_clocks = need_reboot
     if ctx.synch_clocks:
-        need_reboot = ctx.cluster.remotes.keys()
-    synch_clocks(need_reboot, log)
+        # synch all
+        sync_clocks = ctx.cluster.remotes.keys()
+    synch_clocks(sync_clocks, log)
 
     log.info('Reseting syslog output locations...')
     reset_syslog_dir(ctx, log)
