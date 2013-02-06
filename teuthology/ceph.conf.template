@@ -21,7 +21,7 @@
         osd journal = {testdir}/data/osd.$id.journal
         osd journal size = 100
         keyring = {testdir}/data/osd.$id.keyring
-        osd class dir = {testdir}/binary/usr/local/lib/rados-classes
+        osd class dir = /usr/lib/rados-classes
 
         osd scrub load threshold = 5.0
 	osd scrub max interval = 600

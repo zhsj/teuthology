@@ -54,12 +54,10 @@ def create_image(ctx, config):
         log.info('Creating image {name} with size {size}'.format(name=name,
                                                                  size=size))
         args = [
-            'LD_LIBRARY_PATH={tdir}/binary/usr/local/lib'.format(tdir=testdir),
                 '{tdir}/enable-coredump'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                'ceph-coverage'.format(tdir=testdir),
                 '{tdir}/archive/coverage'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/rbd'.format(tdir=testdir),
-                '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                'rbd',
                 '-p', 'rbd',
                 'create',
                 '--size', str(size),
@@ -81,12 +79,10 @@ def create_image(ctx, config):
             (remote,) = ctx.cluster.only(role).remotes.keys()
             remote.run(
                 args=[
-                    'LD_LIBRARY_PATH={tdir}/binary/usr/local/lib'.format(tdir=testdir),
                     '{tdir}/enable-coredump'.format(tdir=testdir),
-                    '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                    'ceph-coverage',
                     '{tdir}/archive/coverage'.format(tdir=testdir),
-                    '{tdir}/binary/usr/local/bin/rbd'.format(tdir=testdir),
-                    '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                    'rbd',
                     '-p', 'rbd',
                     'rm',
                     name,
@@ -171,7 +167,7 @@ def dev_create(ctx, config):
         remote.run(
             args=[
                 'echo',
-                'KERNEL=="rbd[0-9]*", PROGRAM="%s/binary/usr/local/bin/ceph-rbdnamer %%n", SYMLINK+="rbd/%%c{1}/%%c{2}"' % testdir,
+                'KERNEL=="rbd[0-9]*", PROGRAM="ceph-rbdnamer %%n", SYMLINK+="rbd/%%c{1}/%%c{2}"',
                 run.Raw('>'),
                 '{tdir}/51-rbd.rules'.format(tdir=testdir),
                 ],
@@ -191,12 +187,10 @@ def dev_create(ctx, config):
         remote.run(
             args=[
                 'sudo',
-                'LD_LIBRARY_PATH={tdir}/binary/usr/local/lib'.format(tdir=testdir),
                 '{tdir}/enable-coredump'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                'ceph-coverage',
                 '{tdir}/archive/coverage'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/rbd'.format(tdir=testdir),
-                '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                'rbd',
                 '--user', role.rsplit('.')[-1],
                 '--secret', secretfile,
                 '-p', 'rbd',
@@ -220,12 +214,10 @@ def dev_create(ctx, config):
             remote.run(
                 args=[
                     'sudo',
-                    'LD_LIBRARY_PATH={tdir}/binary/usr/local/lib'.format(tdir=testdir),
                     '{tdir}/enable-coredump'.format(tdir=testdir),
-                    '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                    'ceph-coverage',
                     '{tdir}/archive/coverage'.format(tdir=testdir),
-                    '{tdir}/binary/usr/local/bin/rbd'.format(tdir=testdir),
-                    '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                    'rbd',
                     '-p', 'rbd',
                     'unmap',
                     '/dev/rbd/rbd/{imgname}'.format(imgname=image),
@@ -460,9 +452,8 @@ def run_xfstests_one_client(ctx, role, properties):
         # readlink -f <path> in order to get their canonical
         # pathname (so it matches what the kernel remembers).
         args = [
-            'LD_LIBRARY_PATH={tdir}/binary/usr/local/lib'.format(tdir=testdir),
             '{tdir}/enable-coredump'.format(tdir=testdir),
-            '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+            'ceph-coverage',
             '{tdir}/archive/coverage'.format(tdir=testdir),
             '/usr/bin/sudo',
             '/bin/bash',

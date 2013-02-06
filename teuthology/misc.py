@@ -227,9 +227,9 @@ def create_simple_monmap(ctx, remote, conf):
     testdir = get_testdir(ctx)
     args = [
         '{tdir}/enable-coredump'.format(tdir=testdir),
-        '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+        'ceph-coverage',
         '{tdir}/archive/coverage'.format(tdir=testdir),
-        '{tdir}/binary/usr/local/bin/monmaptool'.format(tdir=testdir),
+        'monmaptool',
         '--create',
         '--clobber',
         ]
@@ -266,7 +266,7 @@ def sudo_write_file(remote, path, data):
         stdin=data,
         )
 
-def get_file(remote, path):
+def get_file(remote, path, sudo=False):
     """
     Read a file from remote host into memory.
     """
@@ -434,10 +434,9 @@ def wait_until_healthy(ctx, remote):
         r = remote.run(
             args=[
                 '{tdir}/enable-coredump'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                'ceph-coverage',
                 '{tdir}/archive/coverage'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph'.format(tdir=testdir),
-                '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                'ceph',
                 'health',
                 '--concise',
                 ],
@@ -458,10 +457,9 @@ def wait_until_osds_up(ctx, cluster, remote):
         r = remote.run(
             args=[
                 '{tdir}/enable-coredump'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+                'ceph-coverage',
                 '{tdir}/archive/coverage'.format(tdir=testdir),
-                '{tdir}/binary/usr/local/bin/ceph'.format(tdir=testdir),
-                '-c', '{tdir}/ceph.conf'.format(tdir=testdir),
+                'ceph',
                 '--concise',
                 'osd', 'dump', '--format=json'
                 ],
@@ -540,9 +538,9 @@ def write_secret_file(ctx, remote, role, filename):
     remote.run(
         args=[
             '{tdir}/enable-coredump'.format(tdir=testdir),
-            '{tdir}/binary/usr/local/bin/ceph-coverage'.format(tdir=testdir),
+            'ceph-coverage',
             '{tdir}/archive/coverage'.format(tdir=testdir),
-            '{tdir}/binary/usr/local/bin/ceph-authtool'.format(tdir=testdir),
+            'ceph-authtool',
             '--name={role}'.format(role=role),
             '--print-key',
             '{tdir}/data/{role}.keyring'.format(tdir=testdir, role=role),
