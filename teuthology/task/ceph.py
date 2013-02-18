@@ -172,11 +172,30 @@ def ship_utilities(ctx, config):
                 ),
             )
 
+def set_alternative(ctx, alt):
+  log.info('Setting alternative to \'{name}\''.format(name=alt))
+  testdir = teuthology.get_testdir(ctx)
+  ctx.cluster.run(
+      args=[
+        'rm', '-f', '{tdir}/binary'.format(tdir=testdir),
+        run.Raw('&&'),
+        'ln', '-sn',
+        '{tdir}/binary-alternatives/{name}'.format(tdir=testdir,name=alt),
+        '{tdir}/binary'.format(tdir=testdir),
+        ],
+      )
+
 def _download_binaries(ctx, remote, ceph_bindir_url):
     testdir = teuthology.get_testdir(ctx)
-    remote.run(
-        args=[
-            'install', '-d', '-m0755', '--', '{tdir}/binary'.format(tdir=testdir),
+    assert 'default' in ctx.alternatives, \
+        'Unable to find the default binary alternative'
+    for name,values in ctx.alternatives.iteritems():
+      bindir_url = values['bin_url']
+      log.info('Grabbing alternative {altname}'.format(altname=name))
+      remote.run(
+          args=[
+            'install', '-d', '-m0755', '--',
+            '{tdir}/binary-alternatives/{bname}'.format(tdir=testdir,bname=name),
             run.Raw('&&'),
             'uname', '-m',
             run.Raw('|'),
@@ -185,13 +204,15 @@ def _download_binaries(ctx, remote, ceph_bindir_url):
             'wget',
             '-nv',
             '-O-',
-            '--base={url}'.format(url=ceph_bindir_url),
+            '--base={url}'.format(url=bindir_url),
             # need to use --input-file to make wget respect --base
             '--input-file=-',
             run.Raw('|'),
-            'tar', '-xzf', '-', '-C', '{tdir}/binary'.format(tdir=testdir),
+            'tar', '-xzf', '-', '-C',
+            '{tdir}/binary-alternatives/{bname}'.format(tdir=testdir,bname=name),
             ],
-        )
+          )
+    set_alternative(ctx, 'default')
 
 @contextlib.contextmanager
 def binaries(ctx, config):
@@ -199,6 +220,7 @@ def binaries(ctx, config):
     tmpdir = None
 
     testdir = teuthology.get_testdir(ctx)
+
 
     if path is None:
         # fetch from gitbuilder gitbuilder
@@ -217,6 +239,27 @@ def binaries(ctx, config):
         if ctx.archive is not None:
             with file(os.path.join(ctx.archive, 'ceph-sha1'), 'w') as f:
                 f.write(sha1 + '\n')
+
+        alternatives = config.get('alternatives', None)
+        if alternatives is None:
+          alternatives = {}
+        assert isinstance(alternatives, dict), \
+            'alternatives must be a dict'
+        ctx.alternatives = {}
+        ctx.alternatives['default'] = {'sha1':sha1,'bin_url':ceph_bindir_url}
+        ctx.current_alternative = 'default'
+        for alt_name, alt in alternatives.iteritems():
+          alt_sha1, alt_bindir_url = teuthology.get_ceph_binary_url(
+              package='ceph',
+              branch=alt.get('branch'),
+              tag=alt.get('tag'),
+              sha1=alt.get('sha1'),
+              flavor=config.get('flavor'),
+              format=config.get('format'),
+              dist=config.get('dist'),
+              arch=config.get('arch')
+              )
+          ctx.alternatives[alt_name] = {'sha1':alt_sha1,'bin_url':alt_bindir_url}
 
         with parallel() as p:
             for remote in ctx.cluster.remotes.iterkeys():
@@ -278,6 +321,7 @@ def binaries(ctx, config):
                     '-rf',
                     '--',
                     '{tdir}/binary'.format(tdir=testdir),
+                    '{tdir}/binary-alternatives'.format(tdir=testdir)
                     ],
                 wait=False,
                 ),
@@ -1143,7 +1187,8 @@ def task(ctx, config):
                 flavor=flavor,
                 dist=config.get('dist', dist),
                 format=format,
-                arch=arch
+                arch=arch,
+                alternatives=config.get('alternatives')
                 )),
         lambda: valgrind_post(ctx=ctx, config=config),
         lambda: cluster(ctx=ctx, config=dict(
