@@ -12,7 +12,7 @@ from ..orchestra import run
 log = logging.getLogger(__name__)
 
 
-def _update_deb_package_list_and_install(ctx, remote, debs, config):
+def _update_deb_package_list_and_install(ctx, remote, debs, debtype, config):
     """
     updates the package list so that apt-get can
     download the appropriate packages
@@ -64,7 +64,8 @@ def _update_deb_package_list_and_install(ctx, remote, debs, config):
     else:
         uri = 'ref/master'
 
-    base_url = 'http://{host}/ceph-deb-{dist}-{arch}-{flavor}/{uri}'.format(
+    base_url = 'http://{host}/{debtype}-deb-{dist}-{arch}-{flavor}/{uri}'.format(
+        debtype=debtype,
         host=ctx.teuthology_config.get('gitbuilder_host',
                                        'gitbuilder.ceph.com'),
         dist=dist,
@@ -98,7 +99,7 @@ def _update_deb_package_list_and_install(ctx, remote, debs, config):
         args=[
             'echo', 'deb', base_url, dist, 'main',
             run.Raw('|'),
-            'sudo', 'tee', '/etc/apt/sources.list.d/ceph.list'
+            'sudo', 'tee', '/etc/apt/sources.list.d/{debtype}.list'.format(debtype=debtype)
             ],
         stdout=StringIO(),
         )
@@ -112,17 +113,23 @@ def _update_deb_package_list_and_install(ctx, remote, debs, config):
         )
 
 
-def install_debs(ctx, debs, config):
+def install_debs(ctx, debs, debtype, config):
     """
     installs Debian packages.
     """
-    log.info("Installing ceph debian packages: {debs}".format(
-            debs=', '.join(debs)))
+    log.info("Installing {debtype} debian packages: {debs}".format(
+            debtype=debtype, debs=', '.join(debs)))
     with parallel() as p:
         for remote in ctx.cluster.remotes.iterkeys():
             p.spawn(
                 _update_deb_package_list_and_install,
-                ctx, remote, debs, config)
+                ctx, remote, debs, debtype, config)
+
+def install_ceph_debs(ctx, debs, config):
+    """
+    Install the Ceph Debian packages.
+    """
+    install_debs(ctx, debs, "ceph", config)
 
 def _remove_deb(remote, debs):
     # first ask nicely
@@ -168,10 +175,11 @@ def remove_debs(ctx, debs):
         for remote in ctx.cluster.remotes.iterkeys():
             p.spawn(_remove_deb, remote, debs)
 
-def _remove_sources_list(remote):
+def _remove_sources_list(remote, debtype):
     remote.run(
         args=[
-            'sudo', 'rm', '-f', '/etc/apt/sources.list.d/ceph.list',
+            'sudo', 'rm', '-f',
+            '/etc/apt/sources.list.d/{debtype}.list'.format(debtype=debtype),
             run.Raw('&&'),
             'sudo', 'apt-get', 'update',
             # ignore failure
@@ -181,11 +189,14 @@ def _remove_sources_list(remote):
         stdout=StringIO(),
        )
 
-def remove_sources(ctx):
-    log.info("Removing ceph sources list from apt")
+def remove_sources(ctx, debtype):
+    log.info("Removing {debtype} sources list from apt".format(debtype=debtype))
     with parallel() as p:
         for remote in ctx.cluster.remotes.iterkeys():
-            p.spawn(_remove_sources_list, remote)
+            p.spawn(_remove_sources_list, remote, debtype)
+
+def remove_ceph_sources(ctx):
+    remove_sources(ctx, "ceph")
 
 
 @contextlib.contextmanager
@@ -222,12 +233,12 @@ def install(ctx, config):
         'librbd1',
         'librbd1-dbg',
         ]
-    install_debs(ctx, debs_install, config)
+    install_ceph_debs(ctx, debs_install, config)
     try:
         yield
     finally:
         remove_debs(ctx, debs)
-        remove_sources(ctx)
+        remove_ceph_sources(ctx)
 
 
 @contextlib.contextmanager
