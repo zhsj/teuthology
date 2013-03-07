@@ -45,6 +45,8 @@ def task(ctx, config):
     clients = list(teuthology.get_clients(ctx=ctx, roles=config.keys()))
 
     for id_, remote in clients:
+        # FIXME: this will clash with ceph-fuse and kclient mounts I think, should probably
+        # put a cifs distinguisher on them
         mnt = os.path.join('/tmp/cephtest', 'mnt.{id}'.format(id=id_))
         log.info('Mounting cifs client.{id} at {remote} {mnt}...'.format(
                 id=id_, remote=remote,mnt=mnt))

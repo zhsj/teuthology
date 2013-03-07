@@ -4,63 +4,12 @@ import os
 
 from teuthology import misc as teuthology
 from ..orchestra import run
+import install as package_installs
 
 log = logging.getLogger(__name__)
 
-def download_deb(ctx, sambas):
-    procs = {}
-    for (role, remote) in sambas:
-        log.info('role: {r}'.format(r=role))
-        sha1, deb_url = teuthology.get_ceph_binary_url(
-            package='samba',
-            branch='ceph',
-            format='deb',
-            flavor='basic',
-            arch='x86_64',
-            dist='precise',
-            )
-
-        log.info('Downloading samba deb {sha1} on {role}...'.format(sha1=sha1, role=role))
-        log.info('fetching samba deb from {url}'.format(url=deb_url))
-        proc = remote.run(
-            args=[
-                'sudo', 'rm', '-f', '/tmp/samba.deb',
-                run.Raw('&&'),
-                'echo',
-                'samba_4.1.0pre1-GIT-{sha1short}_amd64.deb'.format(sha1short=sha1[0:7]),
-                run.Raw('|'),
-                'wget',
-                '-nv',
-                '-O',
-                '/tmp/samba.deb',
-                '--base={url}'.format(url=deb_url),
-                '--input-file=-',
-                ],
-            wait=False)
-        procs[remote.name] = proc
-
-    for name, proc in procs.iteritems():
-        log.debug('Waiting for download/copy to %s to complete...', name)
-        proc.exitstatus.get()
-
 def install(ctx, sambas):
-    procs = {}
-    for (role, remote) in sambas:
-        log.info('Installing samba on {role}...'.format(role=role))
-        proc = remote.run(
-            args=[
-                'sudo',
-                'dpkg',
-                '-i',
-                '/tmp/samba.deb',
-                ],
-            wait=False,
-            )
-        procs[remote.name] = proc
-
-    for name, proc in procs.iteritems():
-        log.debug('Waiting for install on %s to complete...', name)
-        proc.exitstatus.get()
+    package_installs.install_debs(ctx, ["samba"], "samba", dict(branch="ceph"))
 
 def get_sambas(ctx, roles):
     for role in roles:
@@ -102,7 +51,6 @@ def task(ctx, config):
                   for id_ in teuthology.all_roles_of_type(ctx.cluster, 'samba')]
     sambas = [('samba.{id}'.format(id=id_), remote) for (id_, remote) in get_sambas(ctx=ctx, roles=config)]
 
-    download_deb(ctx, sambas)
     install(ctx, sambas)
 
     for id_, remote in sambas:
