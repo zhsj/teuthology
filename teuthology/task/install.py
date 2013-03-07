@@ -76,7 +76,8 @@ def _update_deb_package_list_and_install(ctx, remote, debs, debtype, config):
     log.info('Pulling from %s', base_url)
 
     # get package version string
-    while True:
+    version = None
+    while debtype == "ceph":
         r = remote.run(
             args=[
                 'wget', '-q', '-O-', base_url + '/version',
@@ -103,14 +104,25 @@ def _update_deb_package_list_and_install(ctx, remote, debs, debtype, config):
             ],
         stdout=StringIO(),
         )
-    remote.run(
-        args=[
-            'sudo', 'apt-get', 'update', run.Raw('&&'),
-            'sudo', 'apt-get', '-y', '--force-yes',
-            'install',
-            ] + ['%s=%s' % (d, version) for d in debs],
-        stdout=StringIO(),
-        )
+    if version is not None:
+        remote.run(
+            args=[
+                'sudo', 'apt-get', 'update', run.Raw('&&'),
+                'sudo', 'apt-get', '-y', '--force-yes',
+                'install',
+                ] + ['%s=%s' % (d, version) for d in debs],
+            stdout=StringIO(),
+            )
+    else:
+        remote.run(
+            args=[
+                'sudo', 'apt-get', 'update', run.Raw('&&'),
+                'sudo', 'apt-get', '-y', '--force-yes',
+                'install',
+                ] + ['%s=' % (d) for d in debs],
+            stdout=StringIO(),
+            )
+        
 
 
 def install_debs(ctx, debs, debtype, config):
