@@ -49,11 +49,15 @@ class DaemonState(object):
         self.log.info('Started')
 
     def running(self):
-        return self.proc is not None
+        return self.proc is not None and not self.proc.exited
 
     def reset(self):
         self.proc = None
 
+    def wait_for_exit(self):
+        if self.proc:
+            run.wait([self.proc])
+            self.proc = None
 
 class CephState(object):
     def __init__(self):
