@@ -5,6 +5,7 @@ import pipes
 import ConfigParser
 
 from teuthology import misc as teuthology
+from teuthology.orchestra import run as tor
 
 from ..orchestra import run
 log = logging.getLogger(__name__)
@@ -67,13 +68,13 @@ def reset_config(ctx, config, role, id_, conf):
 def restart_daemon(ctx, config, role, id_):
     log.info('Restarting {r}.{i} daemon...'.format(r=role, i=id_))
     daemon = ctx.daemons.get_daemon(role, id_)
-    while daemon.running():
-        time.sleep(1)
+    log.debug('Waiting for exit of {r}.{i} daemon...'.format(r=role, i=id_))
+    try:
+        daemon.wait_for_exit()
+    except tor.CommandFailedError as e:
+        log.debug('Command Failed: {e}'.format(e=e))
+    log.debug('Doing restart of {r}.{i} daemon...'.format(r=role, i=id_))
     daemon.restart()
-
-    # wait to see that it was restarted
-    while not daemon.running():
-        time.sleep(1)
 
 def get_tests(ctx, config, role, remote, testdir):
     srcdir = '{tdir}/restart.{role}'.format(tdir=testdir, role=role)
@@ -130,8 +131,9 @@ def task(ctx, config):
         - install:
         - ceph:
         - restart:
-            client.0:
-              - test_backtraces.py
+            exec:
+              client.0:
+                - test_backtraces.py
 
     """
     assert isinstance(config, dict), "task kill got invalid config"
@@ -139,12 +141,17 @@ def task(ctx, config):
     testdir = teuthology.get_testdir(ctx)
 
     try:
-        for role, task in config.iteritems():
+        assert 'exec' in config, "config requires exec key with <role>: <command> entries"
+        for role, task in config['exec'].iteritems():
+            log.info('restart for role {r}'.format(r=role))
             (remote,) = ctx.cluster.only(role).remotes.iterkeys()
             srcdir, restarts = get_tests(ctx, config, role, remote, testdir)
             log.info('Running command on role %s host %s', role, remote.name)
-            prefix = '{spec}/'.format(spec=task)
-            to_run = [w for w in restarts if w == task or w.startswith(prefix)]
+            spec = '{spec}'.format(spec=task[0])
+            log.info('Restarts list: %s', restarts)
+            log.info('Spec is %s', spec)
+            to_run = [w for w in restarts if w == task or w.find(spec) != -1]
+            log.info('To run: %s', to_run)
             for c in to_run:
                 log.info('Running restart script %s...', c)
                 args = [
@@ -157,7 +164,7 @@ def task(ctx, config):
                         quoted_val = pipes.quote(val)
                         env_arg = '{var}={val}'.format(var=var, val=quoted_val)
                         args.append(run.Raw(env_arg))
-                        args.extend([
+                args.extend([
                             '{tdir}/enable-coredump'.format(tdir=testdir),
                             'ceph-coverage',
                             '{tdir}/archive/coverage'.format(tdir=testdir),
@@ -167,20 +174,36 @@ def task(ctx, config):
                                 ),
                             ])
                 proc = remote.run(
-                    logger=log.getChild(role),
                     args=args,
+                    stdout=tor.PIPE,
+                    stdin=tor.PIPE,
+                    stderr=log,
+                    wait=False,
                     )
-                for l in proc.stdout.readline():
-                    cmd = l.split(' ')
+                log.info('waiting for a command from script')
+                while True:
+                    l = proc.stdout.readline()
+                    if not l or l == '':
+                        break
+                    log.debug('script command: {c}'.format(c=l))
+                    ll = l.strip()
+                    cmd = ll.split(' ')
                     if cmd == "done":
                         break
                     assert cmd[0] == 'restart', "script sent invalid command request to kill task"
                     # cmd should be: restart <role> <id> <conf_key1> <conf_value1> <conf_key2> <conf_value2>
-                    old_conf = set_config(ctx, config, cmd[1], cmd[2], cmd[3:])
-                    restart_daemon(ctx, config, cmd[1], cmd[2])
-                    reset_config(ctx, config, cmd[1], cmd[2], old_conf)
-                    proc.stdin.writelines(['restarted\n'])
-                    proc.stdin.flush()
+                    # or to clear, just: restart <role> <id>
+                    if len(cmd) == 3:
+                        restart_daemon(ctx, config, cmd[1], cmd[2])
+                    else:
+                        old_conf = set_config(ctx, config, cmd[1], cmd[2], cmd[3:])
+                        restart_daemon(ctx, config, cmd[1], cmd[2])
+                        reset_config(ctx, config, cmd[1], cmd[2], old_conf)
+                        proc.stdin.writelines(['restarted\n'])
+                        proc.stdin.flush()
+                tor.wait([proc])
+                e = proc.exitstatus
+                if e != 0:
+                    raise Exception('restart task got non-zero exit status {d} from script: {s}'.format(d=e, s=c))
     finally:
-
-
+        pass
