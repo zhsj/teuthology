@@ -1,8 +1,5 @@
-from cStringIO import StringIO
 import logging
-import time
 import pipes
-import ConfigParser
 
 from teuthology import misc as teuthology
 from teuthology.orchestra import run as tor
@@ -10,62 +7,7 @@ from teuthology.orchestra import run as tor
 from ..orchestra import run
 log = logging.getLogger(__name__)
 
-class _TrimConf(object):
-    def __init__(self, s):
-        self.conf = StringIO(s)
-
-    def readline(self):
-        line = self.conf.readline()
-        return line.lstrip(' \t')
-
-def _optionxform(s):
-    s = s.replace('_', ' ')
-    s = '_'.join(s.split())
-    return s
-
-def set_config(ctx, config, role, id_, *args):
-    log.info('Setting one time config for {r}.{i} daemon: {a}'.format(r=role, i=id_, a=args))
-    daemon = ctx.daemons.get_daemon(role, id_)
-
-    conf_path = config.get('conf_path', '/etc/ceph/ceph.conf')
-    oldconf = teuthology.get_file(
-        remote=daemon.remote,
-        path=conf_path,
-        )
-
-    confsect = '{r}.{i}'.format(r=role, i=id_)
-
-    confp = ConfigParser.RawConfigParser()
-    confp.optionxform = _optionxform
-    ifp = _TrimConf(oldconf)
-    confp.readfp(ifp)
-    conf = dict(zip(args[0::2], args[1::2]))
-    for k, v in conf:
-        confp.set(confsect, k, v)
-
-    newconf = StringIO()
-    confp.write(newconf)
-    teuthology.write_file(
-        remote=daemon.remote,
-        path=conf_path,
-        data=newconf.getvalue(),
-        perms='0644')
-    newconf.close()
-
-    return oldconf
-
-def reset_config(ctx, config, role, id_, conf):
-    log.info('Resetting config for {r}.{i} daemon'.format(r=role, i=id_))
-    daemon = ctx.daemons.get_daemon(role, id_)
-    conf_path = config.get('conf_path', '/etc/ceph/ceph.conf')
-
-    teuthology.write_file(
-        remote=daemon.remote,
-        path=conf_path,
-        data=conf,
-        perms='0644')
-
-def restart_daemon(ctx, config, role, id_):
+def restart_daemon(ctx, config, role, id_, *args):
     log.info('Restarting {r}.{i} daemon...'.format(r=role, i=id_))
     daemon = ctx.daemons.get_daemon(role, id_)
     log.debug('Waiting for exit of {r}.{i} daemon...'.format(r=role, i=id_))
@@ -73,8 +15,13 @@ def restart_daemon(ctx, config, role, id_):
         daemon.wait_for_exit()
     except tor.CommandFailedError as e:
         log.debug('Command Failed: {e}'.format(e=e))
-    log.debug('Doing restart of {r}.{i} daemon...'.format(r=role, i=id_))
-    daemon.restart()
+    if len(args) > 0:
+        confargs = ['--{k}={v}'.format(k=k, v=v) for k,v in zip(args[0::2], args[1::2])]
+        log.debug('Doing restart of {r}.{i} daemon with args: {a}...'.format(r=role, i=id_, a=confargs))
+        daemon.restart(confargs)
+    else:
+        log.debug('Doing restart of {r}.{i} daemon...'.format(r=role, i=id_))
+        daemon.restart()
 
 def get_tests(ctx, config, role, remote, testdir):
     srcdir = '{tdir}/restart.{role}'.format(tdir=testdir, role=role)
@@ -193,14 +140,9 @@ def task(ctx, config):
                     assert cmd[0] == 'restart', "script sent invalid command request to kill task"
                     # cmd should be: restart <role> <id> <conf_key1> <conf_value1> <conf_key2> <conf_value2>
                     # or to clear, just: restart <role> <id>
-                    if len(cmd) == 3:
-                        restart_daemon(ctx, config, cmd[1], cmd[2])
-                    else:
-                        old_conf = set_config(ctx, config, cmd[1], cmd[2], cmd[3:])
-                        restart_daemon(ctx, config, cmd[1], cmd[2])
-                        reset_config(ctx, config, cmd[1], cmd[2], old_conf)
-                        proc.stdin.writelines(['restarted\n'])
-                        proc.stdin.flush()
+                    restart_daemon(ctx, config, cmd[1], cmd[2], cmd[3:])
+                    proc.stdin.writelines(['restarted\n'])
+                    proc.stdin.flush()
                 tor.wait([proc])
                 e = proc.exitstatus
                 if e != 0:
