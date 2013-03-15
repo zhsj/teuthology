@@ -81,6 +81,7 @@ def task(ctx, config):
                                                        secret=secret),
                 ],
             )
+        remote.run(args=['sudo', 'chmod', '1777', '{tdir}/mnt.{id}'.format(tdir=testdir, id=id_)],)
 
     try:
         yield
