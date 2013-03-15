@@ -18,7 +18,7 @@ def restart_daemon(ctx, config, role, id_, *args):
     if len(args) > 0:
         confargs = ['--{k}={v}'.format(k=k, v=v) for k,v in zip(args[0::2], args[1::2])]
         log.debug('Doing restart of {r}.{i} daemon with args: {a}...'.format(r=role, i=id_, a=confargs))
-        daemon.restart(confargs)
+        daemon.restart(*confargs)
     else:
         log.debug('Doing restart of {r}.{i} daemon...'.format(r=role, i=id_))
         daemon.restart()
@@ -140,7 +140,7 @@ def task(ctx, config):
                     assert cmd[0] == 'restart', "script sent invalid command request to kill task"
                     # cmd should be: restart <role> <id> <conf_key1> <conf_value1> <conf_key2> <conf_value2>
                     # or to clear, just: restart <role> <id>
-                    restart_daemon(ctx, config, cmd[1], cmd[2], cmd[3:])
+                    restart_daemon(ctx, config, cmd[1], cmd[2], *cmd[3:])
                     proc.stdin.writelines(['restarted\n'])
                     proc.stdin.flush()
                 tor.wait([proc])
