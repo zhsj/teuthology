@@ -506,6 +506,28 @@ def task(ctx, config):
 
     assert len(out) == 0
 
+    # TESTCASE 'copy-object', 'object', 'copy', 'test copy object > 512K'
+    source_key = boto.s3.key.Key(bucket)
+    source_name = source_key.key
+    source_key.set_contents_from_string(test_string)
+
+    # copy the key to itself but update the metadata
+    new_meta = {'foo' : 'bar'}
+    copied_key = test_key.copy(bucket, source_name, metadata = new_meta)
+
+    # the tail of the file shouldn't have been deleted, but wait for the GC
+    time.sleep(30)
+
+    (err, out) = rgwadmin(ctx, client, ['gc', 'list'])
+    assert len(out) == 0
+
+    (err, out) = rgwadmin(ctx, client, ['gc', 'process'])
+    assert not err
+
+    # check the copy
+    assert copied_key.get_contents_as_string() == test_string
+    assert copied_key.metadata = new_meta
+
     # TESTCASE 'rm-user-buckets','user','rm','existing user','fails, still has buckets'
     (err, out) = rgwadmin(ctx, client, ['user', 'rm', '--uid', user1])
     assert err
