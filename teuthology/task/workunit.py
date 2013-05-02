@@ -48,6 +48,20 @@ def task(ctx, config):
             env:
               FOO: bar
               BAZ: quux
+
+    A mount prefix can be specified using mnt-prefix.  For example:
+
+        tasks:
+        - ceph:
+        - samba:
+        - cifs-mount:
+        - workunit:
+            mnt-prefix: mnt.cifs
+
+    Because the cifs-mount task uses 'mnt.cifs.0' instead of 'mnt.0', the
+    mnt-prefix option is necessary.  The full path for the mountpoint ends
+    up being {testdir}/{mnt-prefix}.0/
+
     """
     assert isinstance(config, dict)
     assert isinstance(config.get('clients'), dict), \
@@ -78,7 +92,7 @@ def task(ctx, config):
             continue
         PREFIX = 'client.'
         assert role.startswith(PREFIX)
-        created_mnt_dir = _make_scratch_dir(ctx, role, config.get('subdir'))
+        created_mnt_dir = _make_scratch_dir(ctx, role, config.get('subdir'), config.get('mnt-prefix'))
         created_dir_dict[role] = created_mnt_dir
 
     all_spec = False #is there an all grouping?
@@ -91,7 +105,7 @@ def task(ctx, config):
 
     if all_spec:
         all_tasks = clients["all"]
-        _spawn_on_all_clients(ctx, refspec, all_tasks, config.get('env'), config.get('subdir'))
+        _spawn_on_all_clients(ctx, refspec, all_tasks, config.get('env'), config.get('subdir'), config.get('mnt-prefix'))
 
     for role in clients.iterkeys():
         assert isinstance(role, basestring)
@@ -100,14 +114,16 @@ def task(ctx, config):
         PREFIX = 'client.'
         assert role.startswith(PREFIX)
         if created_dir_dict[role]:
-            _delete_dir(ctx, role, config.get('subdir'))
+            _delete_dir(ctx, role, config.get('subdir'), config.get('mnt-prefix'))
 
-def _delete_dir(ctx, role, subdir):
+def _delete_dir(ctx, role, subdir, mnt_prefix="mnt"):
     PREFIX = 'client.'
     testdir = teuthology.get_testdir(ctx)
     id_ = role[len(PREFIX):]
     (remote,) = ctx.cluster.only(role).remotes.iterkeys()
-    mnt = os.path.join(testdir, 'mnt.{id}'.format(id=id_))
+    if mnt_prefix is None:
+        mnt_prefix="mnt"
+    mnt = os.path.join(testdir, '{mnt}.{id}'.format(mnt=mnt_prefix, id=id_))
     client = os.path.join(mnt, 'client.{id}'.format(id=id_))
     try:
         remote.run(
@@ -134,14 +150,16 @@ def _delete_dir(ctx, role, subdir):
     except:
         log.debug("Caught an execption deleting dir {dir}".format(dir=mnt))
 
-def _make_scratch_dir(ctx, role, subdir):
+def _make_scratch_dir(ctx, role, subdir, mnt_prefix='mnt'):
     retVal = False
     PREFIX = 'client.'
     id_ = role[len(PREFIX):]
     log.debug("getting remote for {id} role {role_}".format(id=id_, role_=role))
     (remote,) = ctx.cluster.only(role).remotes.iterkeys()
     dir_owner = remote.shortname.split('@', 1)[0]
-    mnt = os.path.join(teuthology.get_testdir(ctx), 'mnt.{id}'.format(id=id_))
+    if mnt_prefix is None:
+        mnt_prefix="mnt"
+    mnt = os.path.join(teuthology.get_testdir(ctx), '{mnt}.{id}'.format(mnt=mnt_prefix, id=id_))
     # if neither kclient nor ceph-fuse are required for a workunit,
     # mnt may not exist. Stat and create the directory if it doesn't.
     try:
@@ -199,13 +217,13 @@ def _make_scratch_dir(ctx, role, subdir):
 
     return retVal
 
-def _spawn_on_all_clients(ctx, refspec, tests, env, subdir):
+def _spawn_on_all_clients(ctx, refspec, tests, env, subdir, mnt_prefix):
     client_generator = teuthology.all_roles_of_type(ctx.cluster, 'client')
     client_remotes = list()
     for client in client_generator:
         (client_remote,) = ctx.cluster.only('client.{id}'.format(id=client)).remotes.iterkeys()
         client_remotes.append((client_remote, 'client.{id}'.format(id=client)))
-        _make_scratch_dir(ctx, "client.{id}".format(id=client), subdir)
+        _make_scratch_dir(ctx, "client.{id}".format(id=client), subdir, mnt_prefix)
 
     for unit in tests:
         with parallel() as p:
@@ -215,16 +233,18 @@ def _spawn_on_all_clients(ctx, refspec, tests, env, subdir):
     # cleanup the generated client directories
     client_generator = teuthology.all_roles_of_type(ctx.cluster, 'client')
     for client in client_generator:
-        _delete_dir(ctx, 'client.{id}'.format(id=client), subdir)
+        _delete_dir(ctx, 'client.{id}'.format(id=client), subdir, mnt_prefix)
 
-def _run_tests(ctx, refspec, role, tests, env, subdir=None):
+def _run_tests(ctx, refspec, role, tests, env, subdir=None, mnt_prefix="mnt"):
     testdir = teuthology.get_testdir(ctx)
     assert isinstance(role, basestring)
     PREFIX = 'client.'
     assert role.startswith(PREFIX)
     id_ = role[len(PREFIX):]
     (remote,) = ctx.cluster.only(role).remotes.iterkeys()
-    mnt = os.path.join(testdir, 'mnt.{id}'.format(id=id_))
+    if mnt_prefix is None:
+        mnt_prefix = "mnt"
+    mnt = os.path.join(testdir, '{mnt}.{id}'.format(mnt=mnt_prefix, id=id_))
     # subdir so we can remove and recreate this a lot without sudo
     if subdir is None:
         scratch_tmp = os.path.join(mnt, 'client.{id}'.format(id=id_), 'tmp')
