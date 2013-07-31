@@ -1,0 +1,43 @@
+roles:
+- [mon.a, mon.b, osd.0, osd.1, osd.2, client.0]
+- [mon.c, osd.3, osd.4, osd.5, client.1]
+
+tasks:
+- install:
+    branch: next
+- ceph:
+    fs: xfs
+    conf:
+      client.0:
+        debug rgw: 20
+        rgw region: foo
+        rgw zone: foo-1
+        rgw region root pool: .rgw.root.foo
+        rgw zone root pool: .rgw.root.foo
+      client.1:
+        debug rgw: 20
+        rgw region: bar
+        rgw zone: bar-1
+        rgw region root pool: .rgw.root.bar
+        rgw zone root pool: .rgw.root.bar
+- rgw:
+    regions:
+      foo:
+        is master: true
+        zones: [foo-1]
+      bar:
+        zones: [bar-1]
+    client.0:
+      system user:
+        name: test_system_user
+        access key: X2IYPSTY1072DDY1SJMC
+        secret key: YIMHICpPvT+MhLTbSsiBJ1jQF15IFvJA8tgwJEcm
+    client.1:
+      system user:
+        name: test-system-user
+        access key: Y2IYPSTY1072DDY1SJMC
+        secret key: XIMHICpPvT+MhLTbSsiBJ1jQF15IFvJA8tgwJEcma
+- rgw_sync_agent:
+    source: client.0
+    target: client.1
+- interactive:
