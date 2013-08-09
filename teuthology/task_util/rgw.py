@@ -113,6 +113,30 @@ def radosgw_agent_sync_all(ctx):
                 host1=agent_client,host2=sync_dest))
             radosgw_agent_sync(ctx, sync_dest, sync_port)
 
+def get_regions(ctx, client):
+    try:
+        # with no regions configured, this returns non-zero (not empty list)
+        _, region_list = rgwadmin(ctx, client, check_status=True,
+                                  cmd=['-n', client, 'region', 'list'])
+    except:
+        return []
+    return region_list['regions']
+
+def get_region_master_meta(ctx, client, region):
+    """Returns tuple of (region is_master, master zone endpoint)"""
+    _, region_info = rgwadmin(ctx, client, check_status=True,
+                             cmd=['-n', client, 'region', 'get',
+                                  '--rgw-region', region])
+    # rgw outputs strings instead of bools
+    is_master = region_info['is_master'] == 'true'
+    master_zone = region_info['master_zone']
+    for zone_info in region_info['zones']:
+        if zone_info['name'] != master_zone:
+            continue
+        endpoint = zone_info['endpoints'][0]
+        return is_master, endpoint
+    return False, None
+
 def host_for_role(ctx, role):
     for target, roles in zip(ctx.config['targets'].iterkeys(), ctx.config['roles']):
         if role in roles:

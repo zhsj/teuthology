@@ -6,9 +6,11 @@ import logging
 import os
 import random
 import string
+from urlparse import urlparse
 
 from teuthology import misc as teuthology
 from teuthology import contextutil
+import teuthology.task_util.rgw as rgw_utils
 from ..orchestra import run
 from ..orchestra.connection import split_user
 
@@ -70,19 +72,20 @@ def create_users(ctx, config):
     log.info('Creating rgw users...')
     testdir = teuthology.get_testdir(ctx)
     users = {'s3 main': 'foo', 's3 alt': 'bar'}
-    for client in config['clients']:
+    for client, c_config in config['clients'].iteritems():
         s3tests_conf = config['s3tests_conf'][client]
         s3tests_conf.setdefault('fixtures', {})
         s3tests_conf['fixtures'].setdefault('bucket prefix', 'test-' + client + '-{random}-')
         for section, user in users.iteritems():
             _config_user(s3tests_conf, section, '{user}.{client}'.format(user=user, client=client))
-            ctx.cluster.only(client).run(
+            rgw_server = c_config.get('rgw_server', client)
+            ctx.cluster.only(rgw_server).run(
                 args=[
                     '{tdir}/adjust-ulimits'.format(tdir=testdir),
                     'ceph-coverage',
                     '{tdir}/archive/coverage'.format(tdir=testdir),
                     'radosgw-admin',
-                    '-n', client,
+                    '-n', rgw_server,
                     'user', 'create',
                     '--uid', s3tests_conf[section]['user_id'],
                     '--display-name', s3tests_conf[section]['display_name'],
@@ -94,16 +97,17 @@ def create_users(ctx, config):
     try:
         yield
     finally:
-        for client in config['clients']:
+        for client, c_config in config['clients'].iteritems():
             for user in users.itervalues():
                 uid = '{user}.{client}'.format(user=user, client=client)
-                ctx.cluster.only(client).run(
+                rgw_server = c_config.get('rgw_server', client)
+                ctx.cluster.only(rgw_server).run(
                     args=[
                         '{tdir}/adjust-ulimits'.format(tdir=testdir),
                         'ceph-coverage',
                         '{tdir}/archive/coverage'.format(tdir=testdir),
                         'radosgw-admin',
-                        '-n', client,
+                        '-n', rgw_server,
                         'user', 'rm',
                         '--uid', uid,
                         '--purge-data',
@@ -118,17 +122,43 @@ def configure(ctx, config):
     testdir = teuthology.get_testdir(ctx)
     for client, properties in config['clients'].iteritems():
         s3tests_conf = config['s3tests_conf'][client]
-        if properties is not None and 'rgw_server' in properties:
-            host = None
-            for target, roles in zip(ctx.config['targets'].iterkeys(), ctx.config['roles']):
-                log.info('roles: ' + str(roles))
-                log.info('target: ' + str(target))
-                if properties['rgw_server'] in roles:
-                    _, host = split_user(target)
-            assert host is not None, "Invalid client specified as the rgw_server"
-            s3tests_conf['DEFAULT']['host'] = host
-        else:
-            s3tests_conf['DEFAULT']['host'] = 'localhost'
+        server = client
+        port = 7280
+        host = None
+        if properties is not None:
+            server = properties.get('rgw_server', server)
+            host = rgw_utils.host_for_role(ctx, server)
+        assert host is not None, 'Invalid client specified as the rgw_server'
+        zone = rgw_utils.zone_for_client(ctx, server)
+        if zone:
+            host, port = rgw_utils.get_zone_host_and_port(ctx, server, zone)
+        s3tests_conf['DEFAULT']['host'] = host
+        s3tests_conf['DEFAULT']['port'] = port
+
+        regions = rgw_utils.get_regions(ctx, server)
+        for region in regions:
+            is_master, endpoint = rgw_utils.get_region_master_meta(ctx,
+                                                                   server,
+                                                                   region)
+            parsed_endpoint = urlparse(endpoint)
+            is_secure = parsed_endpoint.scheme == 'https'
+            if is_secure:
+                default_port = 443
+            else:
+                default_port = 80
+            region_key = 'region ' + region
+            s3tests_conf[region_key] = {}
+            s3tests_conf[region_key]['host'] = parsed_endpoint.hostname
+            s3tests_conf[region_key]['port'] = parsed_endpoint.port or default_port
+            s3tests_conf[region_key]['is_master'] = is_master
+            s3tests_conf[region_key]['is_secure'] = is_secure
+            if is_master:
+                agent_host, agent_port = rgw_utils.get_sync_agent(ctx, server)
+                s3tests_conf[region_key]['sync_agent_addr'] = agent_host
+                s3tests_conf[region_key]['sync_agent_port'] = agent_port
+                if properties is not None and 'sync_meta_wait' in properties:
+                    s3tests_conf[region_key]['sync_meta_wait'] = \
+                        properties['sync_meta_wait']
 
         (remote,) = ctx.cluster.only(client).remotes.keys()
         remote.run(
@@ -217,7 +247,6 @@ def task(ctx, config):
         config = all_clients
     if isinstance(config, list):
         config = dict.fromkeys(config)
-    clients = config.keys()
 
     overrides = ctx.config.get('overrides', {})
     # merge each client section, not the top level.
@@ -229,13 +258,12 @@ def task(ctx, config):
     log.debug('config is %s', config)
 
     s3tests_conf = {}
-    for client in clients:
+    for client in config.keys():
         s3tests_conf[client] = ConfigObj(
             indent_type='',
             infile={
                 'DEFAULT':
                     {
-                    'port'      : 7280,
                     'is_secure' : 'no',
                     },
                 'fixtures' : {},
@@ -247,7 +275,7 @@ def task(ctx, config):
     with contextutil.nested(
         lambda: download(ctx=ctx, config=config),
         lambda: create_users(ctx=ctx, config=dict(
-                clients=clients,
+                clients=config,
                 s3tests_conf=s3tests_conf,
                 )),
         lambda: configure(ctx=ctx, config=dict(
