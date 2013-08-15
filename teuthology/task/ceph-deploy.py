@@ -19,6 +19,14 @@ def download_ceph_deploy(ctx, config):
     Downloads ceph-deploy from the ceph.com git mirror and (by default)
     switches to the master branch. If the `ceph-deploy-branch` is specified, it
     will use that instead.
+
+    The first monitor node[ex: mon.a] as mentioned in the task yaml file is picked as the admin node,
+    from where all the ceph-deploy commands will be executed.
+
+    Input arguments:
+    ctx: Namespace containing cluster information
+    config: contains configuration information from the task yaml [ex: targets, roles, tasks]
+
     """
     log.info('Downloading ceph-deploy...')
     testdir = teuthology.get_testdir(ctx)
@@ -58,7 +66,15 @@ def download_ceph_deploy(ctx, config):
 
 
 def is_healthy(ctx, config):
-    """Wait until a Ceph cluster is healthy."""
+    """
+    The function executes  ceph health command and waits until
+    the Ceph cluster reports HEALTH_OK.
+    
+    Input arguments:
+    ctx: Namespace containing cluster information
+    config: contains configuration information from the task yaml [ex: targets, roles, tasks]
+
+    """
     testdir = teuthology.get_testdir(ctx)
     ceph_admin = teuthology.get_first_mon(ctx, config)
     (remote,) = ctx.cluster.only(ceph_admin).remotes.keys()
@@ -80,7 +96,18 @@ def is_healthy(ctx, config):
             break
         time.sleep(1)
 
-def get_nodes_using_roles(ctx, config, role):
+def get_nodes_using_roles(ctx, role):
+    """
+    The function takes role of the node in the cluster as input and
+    returns the corresponding nodes.
+
+    Input arguments:
+    ctx: Namespace containing cluster information
+    role: role of the node in the cluster. Ex: mds or mon or osd
+   
+    return value: list containing nodes that matches the roles passed as input
+    
+    """
     newl = []
     for _remote, roles_for_host in ctx.cluster.remotes.iteritems():
         for id_ in teuthology.roles_of_type(roles_for_host, role):
@@ -93,7 +120,18 @@ def get_nodes_using_roles(ctx, config, role):
             newl.append(req1)
     return newl
 
-def get_dev_for_osd(ctx, config):
+def get_dev_for_osd(ctx):
+    """
+    The function get_dev_for_osd takes the namespace containing cluster information
+    as input and returns the list of osd devices in the format host:device
+   
+    Input arguments:
+    ctx: Namespace containing cluster information
+
+    return value: list containing devices that can be used os osds in the format host:device
+
+    """
+
     osd_devs = []
     for remote, roles_for_host in ctx.cluster.remotes.iteritems():
         host = remote.name.split('@')[-1]
@@ -108,6 +146,17 @@ def get_dev_for_osd(ctx, config):
     return osd_devs
 
 def get_all_nodes(ctx, config):
+    """
+    The function returns a list of simple host names of the nodes that are mentioned
+    in the targets section of the task yaml input file
+   
+    Input arguments:
+    ctx: Namespace containing cluster information
+    config: contains configuration information from the task yaml [ex: targets, roles, tasks]
+
+    return value: list of simple hostnames of the targets
+
+    """
     nodelist = []
     for t, k in ctx.config['targets'].iteritems():
         host = t.split('@')[-1]
@@ -117,6 +166,18 @@ def get_all_nodes(ctx, config):
     return nodelist
 
 def execute_ceph_deploy(ctx, config, cmd):
+    """
+    The function executes the given ceph-deploy command and returns
+    the exit status of the command executed
+   
+    Input arguments:
+    ctx: Namespace containing cluster information
+    config: contains configuration information from the task yaml [ex: targets, roles, tasks]
+    cmd: ceph-deploy command to be executed
+
+    return value: exit status of the ceph-deploy command executed
+
+    """
     testdir = teuthology.get_testdir(ctx)
     ceph_admin = teuthology.get_first_mon(ctx, config)
     exec_cmd = cmd
@@ -135,8 +196,22 @@ def execute_ceph_deploy(ctx, config, cmd):
 
 @contextlib.contextmanager
 def build_ceph_cluster(ctx, config):
+    """
+    The function deploys ceph cluster by executing a series of ceph-deploy commands
+    and reports error when unsuccessful
+   
+    Input arguments:
+    ctx: Namespace containing cluster information
+    config: contains configuration information from the task yaml [ex: targets, roles, tasks]
+
+    """
     log.info('Building ceph cluster using ceph-deploy...')
     testdir = teuthology.get_testdir(ctx)
+    
+    """
+    The following code picks the given branch from the config file
+    and uses it along with ceph-deploy commands in the format required
+    """
     ceph_branch = None
     if config.get('branch') is not None:
         cbranch = config.get('branch')
@@ -173,6 +248,12 @@ def build_ceph_cluster(ctx, config):
     first_mon = teuthology.get_first_mon(ctx, config)
     (remote,) = ctx.cluster.only(first_mon).remotes.keys()
 
+    """
+    The following lines picks the conf section from the task yaml input file
+    and appends it to the ceph.conf file, this is mostly required to set the debug
+    loglevel for the cluster [ex:debug ms = 1]
+
+    """
     lines = None
     if config.get('conf') is not None:
         confp = config.get('conf')
@@ -188,6 +269,11 @@ def build_ceph_cluster(ctx, config):
     if estatus_install != 0:
         raise RuntimeError("ceph-deploy: Failed to install ceph")
 
+    """
+    when mon_initial_members is set in the task yaml file, mon create command is used
+    in the incremental order of mon_initial_members.
+    otherwise, it defaults to creating all monitors at once and destroying all monitors except one.
+    """
     mon_no = None
     mon_no = config.get('mon_initial_members')
     if mon_no is not None:
@@ -243,9 +329,14 @@ def build_ceph_cluster(ctx, config):
             else:
                 raise RuntimeError("ceph-deploy: Failed to create osds")
 
+    # we need atleast two osd processes running for the ceph cluster
     if config.get('wait-for-healthy', True) and no_of_osds >= 2:
         is_healthy(ctx=ctx, config=None)
 
+        """
+        copy the ceph.conf, ceph.client.id.keyring,ceph.client.admin.keyring
+        file from the admin node to all the client nodes
+        """
         log.info('Setting up client nodes...')
         conf_path = '/etc/ceph/ceph.conf'
         admin_keyring_path = '/etc/ceph/ceph.client.admin.keyring'
@@ -261,7 +352,6 @@ def build_ceph_cluster(ctx, config):
             path=admin_keyring_path,
             sudo=True,
             )
-
         clients = ctx.cluster.only(teuthology.is_type('client'))
         for remot, roles_for_host in clients.remotes.iteritems():
             for id_ in teuthology.roles_of_type(roles_for_host, 'client'):
