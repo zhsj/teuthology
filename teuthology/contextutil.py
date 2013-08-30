@@ -4,6 +4,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
 @contextlib.contextmanager
 def nested(*managers):
     """
@@ -17,27 +18,29 @@ def nested(*managers):
     exits = []
     vars = []
     exc = (None, None, None)
-    try:
-        for mgr_fn in managers:
-            mgr = mgr_fn()
-            exit = mgr.__exit__
-            enter = mgr.__enter__
+    for mgr_fn in managers:
+        mgr = mgr_fn()
+        exit = mgr.__exit__
+        enter = mgr.__enter__
+        try:
             vars.append(enter())
-            exits.append(exit)
-        yield vars
-    except Exception:
-        log.exception('Saw exception from nested tasks')
-        exc = sys.exc_info()
-    finally:
-        while exits:
-            exit = exits.pop()
-            try:
-                if exit(*exc):
-                    exc = (None, None, None)
-            except Exception:
-                exc = sys.exc_info()
-        if exc != (None, None, None):
-            # Don't rely on sys.exc_info() still containing
-            # the right information. Another exception may
-            # have been raised and caught by an exit method
-            raise exc[0], exc[1], exc[2]
+        except Exception:
+            #log.exception('Saw exception from nested tasks')
+            exc = sys.exc_info()
+        else:
+            exc = (None, None, None)
+        finally:
+            while exits:
+                exit = exits.pop()
+                try:
+                    if exit(*exc):
+                        exc = None
+                except Exception:
+                    exc = sys.exc_info()
+            if exc != (None, None, None):
+                # Don't rely on sys.exc_info() still containing
+                # the right information. Another exception may
+                # have been raised and caught by an exit method
+                raise exc[0], exc[1], exc[2]
+        exits.append(exit)
+    yield vars

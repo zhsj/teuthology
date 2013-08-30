@@ -17,6 +17,28 @@ def run_one_task(taskname, **kwargs):
     return fn(**kwargs)
 
 
+def capture(e, ctx, task_name=None):
+        ctx.summary['success'] = False
+        if 'failure_reason' not in ctx.summary:
+            ctx.summary['failure_reason'] = str(e)
+        sentry = get_sentry_client()
+        if sentry:
+            tags = {'owner': ctx.owner}
+            if task_name is not None:
+                tags['task'] = task_name
+            exc_id = sentry.get_ident(sentry.captureException(tags=tags))
+            event_url = "{server}/search?q={id}".format(
+                server=teuth_config.sentry_server.strip('/'), id=exc_id)
+            log.exception(" Sentry event: %s" % event_url)
+            sentry_url_list = ctx.summary.get('sentry_events', [])
+            sentry_url_list.append(event_url)
+            ctx.summary['sentry_events'] = sentry_url_list
+        if ctx.config.get('interactive-on-error'):
+            from .task import interactive
+            log.warning('Saw failure, going into interactive mode...')
+            interactive.task(ctx=ctx, config=None)
+
+
 def run_tasks(tasks, ctx):
     stack = []
     try:
@@ -31,27 +53,8 @@ def run_tasks(tasks, ctx):
                 manager.__enter__()
                 stack.append(manager)
     except Exception, e:
-        ctx.summary['success'] = False
-        if 'failure_reason' not in ctx.summary:
-            ctx.summary['failure_reason'] = str(e)
         log.exception('Saw exception from tasks.')
-        sentry = get_sentry_client()
-        if sentry:
-            tags = {
-                'task': taskname,
-                'owner': ctx.owner,
-            }
-            exc_id = sentry.get_ident(sentry.captureException(tags=tags))
-            event_url = "{server}/search?q={id}".format(
-                server=teuth_config.sentry_server.strip('/'), id=exc_id)
-            log.exception(" Sentry event: %s" % event_url)
-            sentry_url_list = ctx.summary.get('sentry_events', [])
-            sentry_url_list.append(event_url)
-            ctx.summary['sentry_events'] = sentry_url_list
-        if ctx.config.get('interactive-on-error'):
-            from .task import interactive
-            log.warning('Saw failure, going into interactive mode...')
-            interactive.task(ctx=ctx, config=None)
+        capture(e, ctx, taskname)
     finally:
         try:
             exc_info = sys.exc_info()
@@ -61,20 +64,13 @@ def run_tasks(tasks, ctx):
                 try:
                     suppress = manager.__exit__(*exc_info)
                 except Exception, e:
-                    ctx.summary['success'] = False
-                    if 'failure_reason' not in ctx.summary:
-                        ctx.summary['failure_reason'] = str(e)
                     log.exception('Manager failed: %s', manager)
+                    capture(e, ctx)
 
                     if exc_info == (None, None, None):
                         # if first failure is in an __exit__, we don't
                         # have exc_info set yet
                         exc_info = sys.exc_info()
-
-                    if ctx.config.get('interactive-on-error'):
-                        from .task import interactive
-                        log.warning('Saw failure, going into interactive mode...')
-                        interactive.task(ctx=ctx, config=None)
                 else:
                     if suppress:
                         sys.exc_clear()
