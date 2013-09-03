@@ -25,6 +25,8 @@ def run_radosgw_agent(ctx, config):
 
         src_zone = rgw_utils.zone_for_client(ctx, src_client)
         dest_zone = rgw_utils.zone_for_client(ctx, dest_client)
+        src_region = rgw_utils.region_for_client(ctx, src_client)
+        dest_region = rgw_utils.region_for_client(ctx, dest_client)
 
         log.info("source is %s", src_zone)
         log.info("dest is %s", dest_zone)
@@ -83,11 +85,13 @@ def run_radosgw_agent(ctx, config):
 		        '--src-host', src_host,
 		        '--src-port', str(src_port),
 		        '--src-zone', src_zone,
+		        '--src-region', src_region,
 		        '--dest-access-key', dest_access,
 		        '--dest-secret-key', dest_secret,
 		        '--dest-host', dest_host,
 		        '--dest-port', str(dest_port),
 		        '--dest-zone', dest_zone,
+		        '--dest-region', dest_region,
 		        '--daemon-id', daemon_name,
 		        '--log-file', '{tdir}/archive/rgw_sync_agent.{client}.log'.format(
 		            tdir=testdir,
