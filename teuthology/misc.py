@@ -570,6 +570,26 @@ def pull_directory_tarball(remote, remotedir, localfile):
         )
     proc.exitstatus.get()
 
+
+def get_last_line(file_obj):
+    """
+    Reads the last line of a file-like object, then resets the file pointer so
+    that further use of it is possible. Does *not* call close().
+
+    :param file_obj: the file to read from
+    """
+    offset = -100
+    while True:
+        file_obj.seek(offset, 2)
+        lines = file_obj.readlines()
+        if len(lines) > 1:
+            last = lines[-1]
+            break
+        offset *= 2
+    file_obj.seek()
+    return last
+
+
 # returns map of devices to device id links:
 # /dev/sdb: /dev/disk/by-id/wwn-0xf00bad
 def get_wwn_id_map(remote, devs):
