@@ -5,6 +5,7 @@ import gevent.event
 import pipes
 import logging
 import shutil
+import teuthology.misc
 
 log = logging.getLogger(__name__)
 
@@ -111,17 +112,19 @@ def copy_file_to(f, dst, host):
 
 
 class CommandFailedError(Exception):
-    def __init__(self, command, exitstatus, node=None):
+    def __init__(self, command, exitstatus, node=None, last_line=None):
         self.command = command
         self.exitstatus = exitstatus
         self.node = node
+        self.last_line = last_line
 
     def __str__(self):
-        return "Command failed on {node} with status {status}: {command!r}".format(
-            node=self.node,
-            status=self.exitstatus,
-            command=self.command,
-            )
+        msg = "Command failed on {node} with status {status}: {cmd!r}".format(
+            node=self.node, status=self.exitstatus, cmd=self.command,)
+        if self.last_line:
+            msg = "{msg}\nLast line: {line}".format(msg=msg,
+                                                    line=self.last_line)
+        return msg
 
 
 class CommandCrashedError(Exception):
@@ -189,13 +192,8 @@ class KludgeFile(object):
         self._wrapped.close()
         self._wrapped.channel.shutdown_write()
 
-def run(
-    client, args,
-    stdin=None, stdout=None, stderr=None,
-    logger=None,
-    check_status=True,
-    wait=True,
-    ):
+def run(client, args, stdin=None, stdout=None, stderr=None, logger=None,
+        check_status=True, wait=True):
     """
     Run a command remotely.
 
@@ -212,6 +210,18 @@ def run(
     r = execute(client, args)
 
     r.stdin = KludgeFile(wrapped=r.stdin)
+
+    def _get_last_line(stderr_stream, stdout_stream):
+        # Return last line of stderr if it's not empty. Else try stdout. If
+        # both are empty return None so as not to generate a blank "Last Line:"
+        # message.
+        last_line = teuthology.misc.get_last_line(stderr_stream)
+        if not last_line:
+            last_line = teuthology.misc.get_last_line(stdout_stream)
+        return last_line or None
+
+    #g_last_line = gevent.spawn(teuthology.misc.get_last_line(client.makefile_stderr))
+    g_last_line = gevent.spawn(_get_last_line, r.stderr, r.stdout)
 
     g_in = None
     if stdin is not PIPE:
@@ -242,6 +252,8 @@ def run(
         assert not wait, "Using PIPE for stdout without wait=False would deadlock."
 
     def _check_status(status):
+        last_line = g_last_line.get()
+
         if g_err is not None:
             g_err.get()
         if g_out is not None:
@@ -264,7 +276,9 @@ def run(
                 raise CommandCrashedError(command=r.command)
             if status != 0:
                 (host,port) = client.get_transport().getpeername()
-                raise CommandFailedError(command=r.command, exitstatus=status, node=host)
+
+                raise CommandFailedError(command=r.command, exitstatus=status,
+                                         node=host, last_line=last_line)
         return status
 
     if wait:
