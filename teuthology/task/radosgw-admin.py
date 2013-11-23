@@ -34,11 +34,29 @@ def successful_ops(out):
     entry = summary[0]
     return entry['total']['successful_ops']
 
+# import code, traceback, signal
+
+# def debug(sig, frame):
+#     """Interrupt running process, and provide a python prompt for
+#     interactive debugging."""
+#     d={'_frame':frame}         # Allow access to frame object.
+#     d.update(frame.f_globals)  # Unless shadowed by global
+#     d.update(frame.f_locals)
+
+#     i = code.InteractiveConsole(d)
+#     message  = "Signal recieved : entering python shell.\nTraceback:\n"
+#     message += ''.join(traceback.format_stack(frame))
+#     i.interact(message)
+
+# def listen():
+#     signal.signal(signal.SIGUSR1, debug)  # Register handler
 
 def task(ctx, config):
     """
     Test radosgw-admin functionality against a running rgw instance.
     """
+    #listen()
+    global log
     assert config is None or isinstance(config, list) \
         or isinstance(config, dict), \
         "task s3tests only supports a list or dictionary for configuration"
@@ -151,6 +169,7 @@ def task(ctx, config):
             assert not out['suspended']
 
         # compare the metadata between different regions, make sure it matches
+        log.debug('compare the metadata between different regions, make sure it matches')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -161,6 +180,7 @@ def task(ctx, config):
             assert out1 == out2
 
         # suspend a user on the master, then check the status on the destination
+        log.debug('suspend a user on the master, then check the status on the destination')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -170,6 +190,7 @@ def task(ctx, config):
             assert out['suspended']
 
         # delete a user on the master, then check that it's gone on the destination
+        log.debug('delete a user on the master, then check that it\'s gone on the destination')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -193,8 +214,10 @@ def task(ctx, config):
                 check_status=True)
 
         # now do the multi-region bucket tests
+        log.debug('now do the multi-region bucket tests')
 
         # Create a second user for the following tests
+        log.debug('Create a second user for the following tests')
         (err, out) = rgwadmin(ctx, client, [
             'user', 'create',
             '--uid', user2,
@@ -209,10 +232,12 @@ def task(ctx, config):
         assert out is not None
 
         # create a bucket and do a sync
+        log.debug('create a bucket and do a sync')
         bucket = connection.create_bucket(bucket_name2)
         rgw_utils.radosgw_agent_sync_all(ctx)
 
         # compare the metadata for the bucket between different regions, make sure it matches
+        log.debug('compare the metadata for the bucket between different regions, make sure it matches')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -237,11 +262,22 @@ def task(ctx, config):
                 check_status=True)
             assert out1 == out2
 
+        same_region = 0
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
 
+            source_region = rgw_utils.region_for_client(ctx, source_client)
+            dest_region = rgw_utils.region_for_client(ctx, dest_client)
+
+            # 301 is only returned for requests to something in a different region
+            if source_region == dest_region:
+                log.debug('301 is only returned for requests to something in a different region')
+                same_region += 1
+                continue
+
             # Attempt to create a new connection with user1 to the destination RGW
+            log.debug('Attempt to create a new connection with user1 to the destination RGW')
             # and use that to attempt a delete (that should fail)
             exception_encountered = False
             try:
@@ -265,10 +301,16 @@ def task(ctx, config):
             assert exception_encountered
 
             # now delete the bucket on the source RGW and do another sync
+            log.debug('now delete the bucket on the source RGW and do another sync')
+            bucket.delete()
+            rgw_utils.radosgw_agent_sync_all(ctx)
+
+        if same_region == len(ctx.radosgw_agent.config):
             bucket.delete()
             rgw_utils.radosgw_agent_sync_all(ctx)
 
         # make sure that the bucket no longer exists in either region
+        log.debug('make sure that the bucket no longer exists in either region')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -282,10 +324,12 @@ def task(ctx, config):
             assert err2
 
         # create a bucket and then sync it
+        log.debug('create a bucket and then sync it')
         bucket = connection.create_bucket(bucket_name2)
         rgw_utils.radosgw_agent_sync_all(ctx)
 
         # compare the metadata for the bucket between different regions, make sure it matches
+        log.debug('compare the metadata for the bucket between different regions, make sure it matches')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
@@ -298,12 +342,14 @@ def task(ctx, config):
             assert out1 == out2
 
         # Now delete the bucket and recreate it with a different user
+        log.debug('Now delete the bucket and recreate it with a different user')
         # within the same window of time and then sync.
         bucket.delete()
         bucket = connection2.create_bucket(bucket_name2)
         rgw_utils.radosgw_agent_sync_all(ctx)
 
         # compare the metadata for the bucket between different regions, make sure it matches
+        log.debug('compare the metadata for the bucket between different regions, make sure it matches')
         # user2 should own the bucket in both regions
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
@@ -319,16 +365,19 @@ def task(ctx, config):
             assert out1['data']['owner'] != user1
 
         # now we're going to use this bucket to test meta-data update propagation
+        log.debug('now we\'re going to use this bucket to test meta-data update propagation')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             source_client = c_config['src']
             dest_client = c_config['dest']
 
             # get the metadata so we can tweak it
+            log.debug('get the metadata so we can tweak it')
             (err, orig_data) = rgwadmin(ctx, source_client,
                 ['metadata', 'get', 'bucket:{bucket_name}'.format(bucket_name=bucket_name2)],
                 check_status=True)
 
             # manually edit mtime for this bucket to be 300 seconds in the past
+            log.debug('manually edit mtime for this bucket to be 300 seconds in the past')
             new_data = copy.deepcopy(orig_data)
             new_data['mtime'] =  orig_data['mtime'] - 300
             assert new_data != orig_data
@@ -338,15 +387,18 @@ def task(ctx, config):
                 check_status=True)
 
             # get the metadata and make sure that the 'put' worked
+            log.debug('get the metadata and make sure that the \'put\' worked')
             (err, out) = rgwadmin(ctx, source_client,
                 ['metadata', 'get', 'bucket:{bucket_name}'.format(bucket_name=bucket_name2)],
                 check_status=True)
             assert out == new_data
 
             # sync to propagate the new metadata
+            log.debug('sync to propagate the new metadata')
             rgw_utils.radosgw_agent_sync_all(ctx)
 
             # get the metadata from the dest and compare it to what we just set
+            log.debug('get the metadata from the dest and compare it to what we just set')
             # and what the source region has.
             (err1, out1) = rgwadmin(ctx, source_client,
                 ['metadata', 'get', 'bucket:{bucket_name}'.format(bucket_name=bucket_name2)],
@@ -359,7 +411,11 @@ def task(ctx, config):
             assert out1 == new_data
 
         # now we delete the bucket
+        log.debug('now we delete the bucket')
         bucket.delete()
+
+        log.debug('sync to propagate the deleted bucket')
+        rgw_utils.radosgw_agent_sync_all(ctx)
 
         # Delete user2 as later tests do not expect it to exist.
         # Verify that it is gone on both regions
@@ -388,6 +444,7 @@ def task(ctx, config):
            k = boto.s3.key.Key(bucket)
            k.Key = 'tiny_file'
            k.set_contents_from_string("123456789")
+           time.sleep(rgw_utils.radosgw_data_log_window(ctx, source_client))
            rgw_utils.radosgw_agent_sync_all(ctx, data=True)
            (dest_host, dest_port) = ctx.rgw.role_endpoints[dest_client]
            dest_connection = boto.s3.connection.S3Connection(
@@ -399,7 +456,17 @@ def task(ctx, config):
              calling_format=boto.s3.connection.OrdinaryCallingFormat(),
              )
            dest_k = dest_connection.get_bucket(bucket_name + 'data').lookup('tiny_file')
-           assert k.get_contents() == dest_k.get_contents()
+           assert k.get_contents_as_string() == dest_k.get_contents_as_string()
+
+           # check that deleting it removes it from the dest zone
+           k.delete()
+           time.sleep(rgw_utils.radosgw_data_log_window(ctx, source_client))
+           rgw_utils.radosgw_agent_sync_all(ctx, data=True)
+           try:
+               dest_connection.get_bucket(bucket_name + 'data').lookup('tiny_file')
+               assert False, 'object not deleted from destination zone'
+           except boto.exception.S3ResponseError as e:
+               assert e.status == 404
 
         # finally we delete the bucket
         bucket.delete()

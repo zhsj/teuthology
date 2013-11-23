@@ -286,6 +286,14 @@ def extract_zone_info(ctx, client, client_config):
         else:
             zone_info[new_key] = '.' + region + '.' + zone + '.' + new_key
 
+    index_pool = '.' + region + '.' + zone + '.' + 'index_pool'
+    data_pool = '.' + region + '.' + zone + '.' + 'data_pool'
+
+    zone_info['placement_pools'] = [{'key': 'default_placement',
+                                     'val': {'index_pool': index_pool,
+                                             'data_pool': data_pool}
+                                     }]
+
     # these keys are meant for the zones argument in the region info.
     # We insert them into zone_info with a different format and then remove them
     # in the fill_in_endpoints() method
@@ -365,7 +373,7 @@ def fill_in_endpoints(region_info, role_zones, role_endpoints):
         region_conf['zones'].append(zone_payload)
 
 @contextlib.contextmanager
-def configure_users(ctx, config):
+def configure_users(ctx, config, everywhere=False):
     log.info('Configuring users...')
 
     # extract the user info and append it to the payload tuple for the given client
@@ -373,14 +381,22 @@ def configure_users(ctx, config):
         if not c_config:
             continue
         user_info = extract_user_info(c_config)
+        if not user_info:
+            continue
 
-        # if user_info was successfully parsed, use it to create a user
-        if user_info is not None:
+        # For data sync the master zones and regions must have the
+        # system users of the secondary zones. To keep this simple,
+        # just create the system users on every client if regions are
+        # configured.
+        clients_to_create_as = [client]
+        if everywhere:
+            clients_to_create_as = config.keys()
+        for client_name in clients_to_create_as:
             log.debug('Creating user {user} on {client}'.format(
                       user=user_info['system_key']['user'],client=client))
             rgwadmin(ctx, client,
                     cmd=[
-                        '-n', client,
+                        '-n', client_name,
                         'user', 'create',
                         '--uid', user_info['system_key']['user'],
                         '--access-key', user_info['system_key']['access_key'],
@@ -443,6 +459,12 @@ def configure_regions_and_zones(ctx, config, regions, role_endpoints):
             rados(ctx, mon,
                   cmd=['-p', zone_info['domain_root'],
                        'rm', 'zone_info.default'])
+            (remote,) = ctx.cluster.only(role).remotes.keys()
+            for pool_info in zone_info['placement_pools']:
+                remote.run(args=['ceph', 'osd', 'pool', 'create',
+                                 pool_info['val']['index_pool'], '64', '64'])
+                remote.run(args=['ceph', 'osd', 'pool', 'create',
+                                 pool_info['val']['data_pool'], '64', '64'])
             rgwadmin(ctx, client,
                      cmd=['-n', client, 'zone', 'set', '--rgw-zone', zone],
                      stdin=StringIO(json.dumps(dict(zone_info.items() + user_info.items()))),
@@ -598,6 +620,7 @@ def task(ctx, config):
         lambda: configure_users(
             ctx=ctx,
             config=config,
+            everywhere=bool(regions),
             ),
         lambda: ship_config(ctx=ctx, config=config,
                             role_endpoints=role_endpoints),
