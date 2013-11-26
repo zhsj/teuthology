@@ -320,8 +320,11 @@ def extract_region_info(region, region_info):
         log_meta=region_info.get('log meta', False),
         log_data=region_info.get('log data', False),
         master_zone=region_info.get('master zone', region_info['zones'][0]),
-        placement_targets=region_info.get('placement targets', []),
-        default_placement=region_info.get('default placement', ''),
+        placement_targets=region_info.get('placement targets',
+                                          [{'name': 'default_placement',
+                                            'tags': []}]),
+        default_placement=region_info.get('default placement',
+                                          'default_placement'),
         )
 
 def assign_ports(ctx, config):
