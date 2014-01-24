@@ -1213,6 +1213,13 @@ def restart(ctx, config):
         type_ = i.split('.', 1)[0]
         id_ = i.split('.', 1)[1]
         ctx.daemons.get_daemon(type_, id_).stop()
+        if config.get('intermediate-wait-for-mon-quorum'):
+            wait_for_mon_quorum(ctx=ctx, config=config.get('intermediate-wait-for-mon-quorum'))
+        if config.get('intermediate-wait-for-healthy'):
+            healthy(ctx=ctx, config=None)
+        if config.get('intermediate-wait-for-osds-up'):
+            wait_for_osds_up(ctx=ctx, config=None)
+
         ctx.daemons.get_daemon(type_, id_).restart()
 
     if config.get('wait-for-healthy', True):
