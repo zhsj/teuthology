@@ -5,7 +5,7 @@ import logging
 log = logging.getLogger(__name__)
 
 @contextlib.contextmanager
-def nested(*managers):
+def nested(*managers, **kwargs):
     """
     Like contextlib.nested but takes callables returning context
     managers, to avoid the major reason why contextlib.nested was
@@ -27,6 +27,14 @@ def nested(*managers):
         yield vars
     except Exception:
         log.exception('Saw exception from nested tasks')
+
+        if 'ctx' in kwargs:
+            ctx = kwargs['ctx']
+            if ctx.config.get('interactive-on-error'):
+                from .task import interactive
+                log.warning('Saw failure, going into interactive mode...')
+                interactive.task(ctx=ctx, config=None)
+
         exc = sys.exc_info()
     finally:
         while exits:
