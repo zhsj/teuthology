@@ -155,7 +155,7 @@ def build_ceph_cluster(ctx, config):
 
     log.info('Building ceph cluster using ceph-deploy...')
     testdir = teuthology.get_testdir(ctx)
-    ceph_branch = None
+    ceph_branch = "--testing"
     if config.get('branch') is not None:
         cbranch = config.get('branch')
         for var, val in cbranch.iteritems():
