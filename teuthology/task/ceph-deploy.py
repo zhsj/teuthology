@@ -153,32 +153,34 @@ def execute_ceph_deploy(ctx, config, cmd):
 def build_ceph_cluster(ctx, config):
     """Build a ceph cluster"""
 
-    try:
-        log.info('Building ceph cluster using ceph-deploy...')
-        testdir = teuthology.get_testdir(ctx)
-        ceph_branch = None
-        if config.get('branch') is not None:
-            cbranch = config.get('branch')
-            for var, val in cbranch.iteritems():
-                if var == 'testing':
-                    ceph_branch = '--{var}'.format(var=var)
+    log.info('Building ceph cluster using ceph-deploy...')
+    testdir = teuthology.get_testdir(ctx)
+    ceph_branch = None
+    if config.get('branch') is not None:
+        cbranch = config.get('branch')
+        for var, val in cbranch.iteritems():
+            if var == 'testing':
+                ceph_branch = '--{var}'.format(var=var)
+            else:
                 ceph_branch = '--{var}={val}'.format(var=var, val=val)
-        node_dev_list = []
-        all_nodes = get_all_nodes(ctx, config)
-        mds_nodes = get_nodes_using_roles(ctx, config, 'mds')
-        mds_nodes = " ".join(mds_nodes)
-        mon_node = get_nodes_using_roles(ctx, config, 'mon')
-        mon_nodes = " ".join(mon_node)
-        new_mon = './ceph-deploy new'+" "+mon_nodes
-        install_nodes = './ceph-deploy install '+ceph_branch+" "+all_nodes
-        purge_nodes = './ceph-deploy purge'+" "+all_nodes
-        purgedata_nodes = './ceph-deploy purgedata'+" "+all_nodes
-        mon_hostname = mon_nodes.split(' ')[0]
-        mon_hostname = str(mon_hostname)
-        gather_keys = './ceph-deploy gatherkeys'+" "+mon_hostname
-        deploy_mds = './ceph-deploy mds create'+" "+mds_nodes
-        no_of_osds = 0
 
+    node_dev_list = []
+    all_nodes = get_all_nodes(ctx, config)
+    mds_nodes = get_nodes_using_roles(ctx, config, 'mds')
+    mds_nodes = " ".join(mds_nodes)
+    mon_node = get_nodes_using_roles(ctx, config, 'mon')
+    mon_nodes = " ".join(mon_node)
+    new_mon = './ceph-deploy new'+" "+mon_nodes
+    install_nodes = './ceph-deploy install '+ceph_branch+" "+all_nodes
+    purge_nodes = './ceph-deploy purge'+" "+all_nodes
+    purgedata_nodes = './ceph-deploy purgedata'+" "+all_nodes
+    mon_hostname = mon_nodes.split(' ')[0]
+    mon_hostname = str(mon_hostname)
+    gather_keys = './ceph-deploy gatherkeys'+" "+mon_hostname
+    deploy_mds = './ceph-deploy mds create'+" "+mds_nodes
+    no_of_osds = 0
+
+    try:
         if mon_nodes is None:
             raise RuntimeError("no monitor nodes in the config file")
 
@@ -192,7 +194,6 @@ def build_ceph_cluster(ctx, config):
         first_mon = teuthology.get_first_mon(ctx, config)
         (remote,) = ctx.cluster.only(first_mon).remotes.keys()
 
-        lines = None
         if config.get('conf') is not None:
             confp = config.get('conf')
             for section, keys in confp.iteritems():
@@ -209,7 +210,6 @@ def build_ceph_cluster(ctx, config):
         if estatus_install != 0:
             raise RuntimeError("ceph-deploy: Failed to install ceph")
 
-        mon_no = None
         mon_no = config.get('mon_initial_members')
         if mon_no is not None:
             i = 0
