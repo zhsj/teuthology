@@ -1105,6 +1105,13 @@ def task(ctx, config):
         ceph:
           sha1: ...
 
+    A local option can be used to specify a directory on the installing
+    machine that contains different ceph modules than what is on the
+    distrobutions.
+
+    install:
+      local: /tmp/foo
+
     :param ctx: the argparse.Namespace object
     :param config: the config dict
     """

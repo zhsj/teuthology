@@ -166,6 +166,17 @@ You can also pass the ``-v`` option, for more verbose execution. See
 ``teuthology --help`` for more.
 
 
+Installing files from a local tree that differ from the distro
+--------------------------------------------------------------
+
+A directory can be specified via the local directive in install.
+
+install:
+   local: /tmp/foo
+
+will look in /tmp/foo for a tree of files to use in the installation
+instead of the default files.
+
 Multiple config files
 ---------------------
 
