@@ -460,6 +460,46 @@ def task(ctx, config):
         # finally we delete the bucket
         bucket.delete()
 
+        # test recreating a bucket with the same name
+        bucket = connection.create_bucket(bucket_name + 'data')
+
+        # Create a tiny file and check if in sync
+        for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
+            if c_config.get('metadata-only'):
+                continue
+
+            source_client = c_config['src']
+            dest_client = c_config['dest']
+            k = boto.s3.key.Key(bucket)
+            k.key = 'tiny_file'
+            k.set_contents_from_string("abcdefg")
+            time.sleep(rgw_utils.radosgw_data_log_window(ctx, source_client))
+            rgw_utils.radosgw_agent_sync_all(ctx, data=True)
+            (dest_host, dest_port) = ctx.rgw.role_endpoints[dest_client]
+            dest_connection = boto.s3.connection.S3Connection(
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                is_secure=False,
+                port=dest_port,
+                host=dest_host,
+                calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+                )
+            dest_k = dest_connection.get_bucket(bucket_name + 'data').get_key('tiny_file')
+            assert k.get_contents_as_string() == dest_k.get_contents_as_string()
+
+            # check that deleting it removes it from the dest zone
+            k.delete()
+            time.sleep(rgw_utils.radosgw_data_log_window(ctx, source_client))
+            rgw_utils.radosgw_agent_sync_all(ctx, data=True)
+
+            dest_bucket = dest_connection.get_bucket(bucket_name + 'data')
+            dest_k = dest_bucket.get_key('tiny_file')
+            assert dest_k == None, 'object not deleted from destination zone'
+
+        # finally we delete the bucket
+        bucket.delete()
+
+        # test syncing many objects
         bucket = connection.create_bucket(bucket_name + 'data2')
         for agent_client, c_config in ctx.radosgw_agent.config.iteritems():
             if c_config.get('metadata-only'):
