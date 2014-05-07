@@ -2,6 +2,7 @@
 Paramiko run support
 """
 from StringIO import StringIO
+from paramiko.file import BufferedFile
 
 import gevent
 import gevent.event
@@ -119,9 +120,10 @@ def copy_to_log(f, logger, host, loglevel=logging.DEBUG):
     """
     Interface to older xreadlines api.
     """
+    print "copy_to_log"
     # i can't seem to get fudge to fake an iterable, so using this old
     # api for now
-    for line in f.xreadlines():
+    for line in f.readlines():
         line = line.rstrip()
         logger.log(loglevel, '[' + host + ']: ' + line)
 
@@ -144,20 +146,31 @@ def copy_file_to(f, destinations, host):
     :param destinations: destinations
     :param host: original host location
     """
-    if len(destinations) > 1:
+    print "copy_file_to"
+
+    f_dupe = None
+    if isinstance(f, BufferedFile) and len(destinations) > 1:
         f_dupe = StringIO()
+        print "duping"
+        print "tell %s" % f.tell()
         shutil.copyfileobj(f, f_dupe)
         f = f_dupe
+        print "duped"
 
     for dst in destinations:
+        print "f %r" % f
+        print "dst %r" % dst
+        if f is f_dupe:
+            f.seek(0)
         if hasattr(dst, 'log'):
             # looks like a Logger to me; not using isinstance to make life
             # easier for unit tests
+            print "log"
             copy_to_log(f, dst, host)
         else:
-            if f is f_dupe:
-                f.seek(0)
+            print "shutil"
             shutil.copyfileobj(f, dst)
+    print "copy_file_to done"
 
 
 class CommandFailedError(Exception):
