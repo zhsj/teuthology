@@ -13,6 +13,7 @@ from ..contextutil import safe_while
 
 log = logging.getLogger(__name__)
 
+
 class RemoteProcess(object):
     """
     Remote process object used to keep track of attributes of a process.
@@ -22,6 +23,7 @@ class RemoteProcess(object):
         # for orchestra.remote.Remote to place a backreference
         'remote',
         ]
+
     def __init__(self, command, stdin, stdout, stderr, exitstatus, exited):
         self.command = command
         self.stdin = stdin
@@ -29,6 +31,7 @@ class RemoteProcess(object):
         self.stderr = stderr
         self.exitstatus = exitstatus
         self.exited = exited
+
 
 class Raw(object):
     """
@@ -42,6 +45,7 @@ class Raw(object):
             cls=self.__class__.__name__,
             value=self.value,
             )
+
 
 def quote(args):
     """
@@ -193,6 +197,7 @@ class ConnectionLostError(Exception):
             command=self.command,
             )
 
+
 def spawn_asyncresult(fn, *args, **kwargs):
     """
     Spawn a Greenlet and pass it's results to an AsyncResult.
@@ -204,6 +209,7 @@ def spawn_asyncresult(fn, *args, **kwargs):
     AsyncResult avoids this.
     """
     r = gevent.event.AsyncResult()
+
     def wrapper():
         """
         Internal wrapper.
@@ -218,6 +224,7 @@ def spawn_asyncresult(fn, *args, **kwargs):
 
     return r
 
+
 class Sentinel(object):
     """
     Sentinel -- used to define PIPE file-like object.
@@ -229,6 +236,7 @@ class Sentinel(object):
         return self.name
 
 PIPE = Sentinel('PIPE')
+
 
 class KludgeFile(object):
     """
@@ -250,26 +258,37 @@ class KludgeFile(object):
 
 
 def run(
-    client, args,
-    stdin=None, stdout=None, stderr=None,
-    logger=None,
-    check_status=True,
-    wait=True,
-    name=None
-    ):
+        client, args,
+        stdin=None, stdout=None, stderr=None,
+        logger=None,
+        check_status=True,
+        wait=True,
+        name=None
+        ):
     """
     Run a command remotely.
 
     :param client: SSHConnection to run the command with
     :param args: command to run
     :type args: list of string
-    :param stdin: Standard input to send; either a string, a file-like object, None, or `PIPE`. `PIPE` means caller is responsible for closing stdin, or command may never exit.
-    :param stdout: What to do with standard output. Either a file-like object, a `logging.Logger`, `PIPE`, or `None` for copying to default log. `PIPE` means caller is responsible for reading, or command may never exit.
+    :param stdin: Standard input to send; either a string, a file-like object,
+                  None, or `PIPE`. `PIPE` means caller is responsible for
+                  closing stdin, or
+    command may never exit.  :param stdout: What to do with standard output.
+    Either a file-like object, a `logging.Logger`, `PIPE`, or `None` for
+    copying to default log. `PIPE` means caller is responsible for reading, or
+    command may never exit.
     :param stderr: What to do with standard error. See `stdout`.
-    :param logger: If logging, write stdout/stderr to "out" and "err" children of this logger. Defaults to logger named after this module.
-    :param check_status: Whether to raise CommandFailedError on non-zero exit status, and . Defaults to True. All signals and connection loss are made to look like SIGHUP.
-    :param wait: Whether to wait for process to exit. If False, returned ``r.exitstatus`` s a `gevent.event.AsyncResult`, and the actual status is available via ``.get()``.
-    :param name: Human readable name (probably hostname) of the destination host
+    :param logger: If logging, write stdout/stderr to "out" and "err" children
+                   of this logger. Defaults to logger named after this module.
+    :param check_status: Whether to raise CommandFailedError on non-zero exit
+                         status, and . Defaults to True. All signals and
+                         connection loss are made to look like SIGHUP.
+    :param wait: Whether to wait for process to exit. If False, returned
+                 ``r.exitstatus`` s a `gevent.event.AsyncResult`, and the
+                 actual status is available via ``.get()``.
+    :param name: Human readable name (probably hostname) of the destination
+                 host
     """
     r = execute(client, args)
 
@@ -280,7 +299,8 @@ def run(
         g_in = gevent.spawn(copy_and_close, stdin, r.stdin)
         r.stdin = None
     else:
-        assert not wait, "Using PIPE for stdin without wait=False would deadlock."
+        assert not wait, \
+            "Using PIPE for stdin without wait=False would deadlock."
 
     if logger is None:
         logger = log
@@ -299,7 +319,8 @@ def run(
         g_err = gevent.spawn(copy_file_to, r.stderr, err_outputs, name)
         r.stderr = stderr
     else:
-        assert not wait, "Using PIPE for stderr without wait=False would deadlock."
+        assert not wait, \
+            "Using PIPE for stderr without wait=False would deadlock."
 
     g_out = None
     if stdout is not PIPE:
@@ -308,7 +329,8 @@ def run(
         g_out = gevent.spawn(copy_file_to, r.stdout, [stdout], name)
         r.stdout = stdout
     else:
-        assert not wait, "Using PIPE for stdout without wait=False would deadlock."
+        assert not wait, \
+            "Using PIPE for stdout without wait=False would deadlock."
 
     def _check_status(status):
         """
@@ -336,7 +358,10 @@ def run(
                 # signal; sadly SSH does not tell us which signal
                 raise CommandCrashedError(command=r.command)
             if status != 0:
-                raise CommandFailedError(command=r.command, exitstatus=status, node=name, stderr=err_buffer.getvalue())
+                raise CommandFailedError(command=r.command,
+                                         exitstatus=status,
+                                         node=name,
+                                         stderr=err_buffer.getvalue())
         return status
 
     if wait:
