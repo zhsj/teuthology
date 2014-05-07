@@ -1,7 +1,7 @@
 """
 Paramiko run support
 """
-from cStringIO import StringIO
+from StringIO import StringIO
 
 import gevent
 import gevent.event
