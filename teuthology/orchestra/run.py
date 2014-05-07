@@ -77,7 +77,7 @@ def execute(client, args):
     else:
         cmd = quote(args)
     (host, port) = client.get_transport().getpeername()
-    log.debug('Running [{h}]: {cmd!r}'.format(h=host, cmd=cmd))
+    log.info('Running [{h}]: {cmd!r}'.format(h=host, cmd=cmd))
     (in_, out, err) = client.exec_command(cmd)
 
     def get_exitstatus():
@@ -110,7 +110,8 @@ def execute(client, args):
         )
     return r
 
-def copy_to_log(f, logger, host, loglevel=logging.INFO):
+
+def copy_to_log(f, logger, host, loglevel=logging.DEBUG):
     """
     Interface to older xreadlines api.
     """
@@ -119,6 +120,7 @@ def copy_to_log(f, logger, host, loglevel=logging.INFO):
     for line in f.xreadlines():
         line = line.rstrip()
         logger.log(loglevel, '[' + host + ']: ' + line)
+
 
 def copy_and_close(src, fdst):
     """
