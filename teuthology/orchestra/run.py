@@ -144,12 +144,19 @@ def copy_file_to(f, destinations, host):
     :param destinations: destinations
     :param host: original host location
     """
+    if len(destinations) > 1:
+        f_dupe = StringIO()
+        shutil.copyfileobj(f, f_dupe)
+        f = f_dupe
+
     for dst in destinations:
         if hasattr(dst, 'log'):
             # looks like a Logger to me; not using isinstance to make life
             # easier for unit tests
             copy_to_log(f, dst, host)
         else:
+            if f is f_dupe:
+                f.seek(0)
             shutil.copyfileobj(f, dst)
 
 
