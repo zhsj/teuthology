@@ -126,6 +126,8 @@ def copy_to_log(f, logger, host, loglevel=logging.INFO):
     """
     Interface to older xreadlines api.
     """
+    log.info("ZZZ copy_to_log f=%r logger=%r host=%r level=%r" %
+             (f, logger, host, loglevel))
     # i can't seem to get fudge to fake an iterable, so using this old
     # api for now
     for line in f.readlines():
@@ -137,6 +139,7 @@ def copy_and_close(src, fdst):
     """
     copyfileobj call wrapper.
     """
+    log.info("ZZZ copy_and_close src=%r fdst=%r" % (src, fdst))
     if src is not None:
         if isinstance(src, basestring):
             src = StringIO(src)
@@ -151,6 +154,7 @@ def copy_file_to(f, destinations, host):
     :param destinations: destinations
     :param host: original host location
     """
+    log.info("ZZZ copy_file_to f=%r dest=%r host=%r" % (f, destinations, host))
     f_dupe = None
     if isinstance(f, BufferedFile) and len(destinations) > 1:
         f_dupe = StringIO()
