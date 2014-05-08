@@ -2,7 +2,7 @@
 Paramiko run support
 """
 from StringIO import StringIO
-from paramiko.file import BufferedFile, ChannelFile
+from paramiko import BufferedFile, ChannelFile
 
 import gevent
 import gevent.event
