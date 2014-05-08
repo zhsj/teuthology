@@ -167,6 +167,9 @@ def copy_file_to(f, destinations, host):
         else:
             shutil.copyfileobj(f, dst)
 
+    if f_dupe:
+        f_dupe.close()
+
 
 class CommandFailedError(Exception):
     """
