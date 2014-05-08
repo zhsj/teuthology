@@ -122,7 +122,7 @@ def execute(client, args, name=None):
     return r
 
 
-def copy_to_log(f, logger, host, loglevel=logging.DEBUG):
+def copy_to_log(f, logger, host, loglevel=logging.INFO):
     """
     Interface to older xreadlines api.
     """
