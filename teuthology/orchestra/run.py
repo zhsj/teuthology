@@ -2,7 +2,7 @@
 Paramiko run support
 """
 from StringIO import StringIO
-from paramiko.file import BufferedFile
+from paramiko.file import BufferedFile, ChannelFile
 
 import gevent
 import gevent.event
@@ -156,7 +156,8 @@ def copy_file_to(f, destinations, host):
     """
     log.info("ZZZ copy_file_to f=%r dest=%r host=%r" % (f, destinations, host))
     f_dupe = None
-    if isinstance(f, BufferedFile) and len(destinations) > 1:
+    if (isinstance(f, ChannelFile) or isinstance(f, BufferedFile)) \
+       and len(destinations) > 1:
         f_dupe = StringIO()
         shutil.copyfileobj(f, f_dupe)
         f = f_dupe
