@@ -39,8 +39,8 @@ class TestRun(object):
         logger.expects('getChild').with_args('err').returns(log_err)
         log_out = fudge.Fake('log_out')
         logger.expects('getChild').with_args('out').returns(log_out)
-        log_out.expects('log').with_args(logging.DEBUG, '[HOST]: foo')
-        log_out.expects('log').with_args(logging.DEBUG, '[HOST]: bar')
+        log_out.expects('log').with_args(logging.INFO, '[HOST]: foo')
+        log_out.expects('log').with_args(logging.INFO, '[HOST]: bar')
 
         channel = fudge.Fake('channel')
         out.has_attr(channel=channel)
