@@ -67,8 +67,8 @@ class ResultsSerializer(object):
     """
     yamls = ('orig.config.yaml', 'config.yaml', 'info.yaml', 'summary.yaml')
 
-    def __init__(self, archive_base, log=None):
-        self.archive_base = archive_base
+    def __init__(self, archive_base=None, log=None):
+        self.archive_base = archive_base or config.archive_base
         self.log = log or init_logging()
 
     def job_info(self, run_name, job_id, pretty=False):
@@ -177,12 +177,11 @@ class ResultsReporter(object):
     def __init__(self, archive_base=None, base_uri=None, save=False,
                  refresh=False, log=None):
         self.log = log or init_logging()
-        self.archive_base = archive_base or config.archive_base
         self.base_uri = base_uri or config.results_server
         if self.base_uri:
             self.base_uri = self.base_uri.rstrip('/')
 
-        self.serializer = ResultsSerializer(archive_base, log=self.log)
+        self.serializer = ResultsSerializer(log=self.log)
         self.save_last_run = save
         self.refresh = refresh
         self.session = self._make_session()
@@ -199,7 +198,7 @@ class ResultsReporter(object):
 
     def report_all_runs(self):
         """
-        Report *all* runs in self.archive_dir to the results server.
+        Report *all* runs in the serializer's archive to the results server.
         """
         all_runs = self.serializer.all_runs
         last_run = self.last_run
