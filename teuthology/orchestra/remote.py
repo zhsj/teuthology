@@ -87,6 +87,7 @@ class Remote(object):
 
     def ensure_online(self):
         if not self.is_online:
+            log.debug("Connection to %r dropped; reconnecting..." % self)
             return self.connect()
 
     @property
@@ -157,8 +158,19 @@ class Remote(object):
         """
         Use the paramiko.SFTPClient to get a file. Returns the local filename.
         """
+        log.debug("SFTP session start on %r" % self)
         sftp = self.ssh.open_sftp()
+        log.debug("SFTP get: {host}:{src} -> {dest}".format(
+            host=self.shortname,
+            src=remote_path,
+            dest=local_path,
+        ))
         sftp.get(remote_path, local_path)
+        # Close the session when we're done
+        log.debug("SFTP session end on %r" % self)
+        sftp.close()
+        # Might need to reconnect
+        self.ensure_online()
         return local_path
 
     def _sftp_open_file(self, remote_path):
