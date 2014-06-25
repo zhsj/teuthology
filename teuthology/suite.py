@@ -115,7 +115,7 @@ def fetch_suite_repo(branch, test_name):
     try:
         checkout_repo(
             repo_url=os.path.join(config.ceph_git_base_url, 'teuthology.git'),
-            dest_dir=os.path.join(src_base_path, 'teuthology'),
+            dest_path=os.path.join(src_base_path, 'teuthology'),
             branch='master')
         checkout_repo(
             repo_url=os.path.join(config.ceph_git_base_url, 'ceph-qa-suite'),
