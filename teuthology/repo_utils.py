@@ -16,7 +16,7 @@ def checkout_repo(repo_url, dest_path, branch):
     #         shutil.rmtree(path)
 
     if not os.path.isdir(dest_path):
-        log.info("Cloning %s from upstream", branch)
+        log.info("Cloning %s %s from upstream", repo_url, branch)
         log.info(
             subprocess.check_output(('git', 'clone', '--branch', branch,
                                      repo_url, dest_path),
