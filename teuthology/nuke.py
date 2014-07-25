@@ -24,6 +24,18 @@ from .task.internal import connect
 log = logging.getLogger(__name__)
 
 
+def clear_firewall(ctx):
+    """
+    Remove any iptables rules created by teuthology
+    """
+    ctx.cluster.run(
+        args=[
+            "sudo", "sh", "-c", "iptables-save | grep -v teuthology | iptables-restore"
+        ],
+        wait=False,
+    )
+
+
 def shutdown_daemons(ctx):
     nodes = {}
     for remote in ctx.cluster.remotes.iterkeys():
@@ -420,6 +432,10 @@ def nuke_helper(ctx):
     if ctx.check_locks:
         check_lock(ctx, None)
     connect(ctx, None)
+
+    log.info('Resetting firewall...')
+    clear_firewall(ctx)
+    log.info("Firewall reset.")
 
     log.info('Unmount ceph-fuse and killing daemons...')
     shutdown_daemons(ctx)

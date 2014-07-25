@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import logging
 import datetime
 from textwrap import dedent
+import gevent
 import os
 from teuthology.orchestra import run
 from teuthology.orchestra.run import CommandFailedError
