@@ -97,9 +97,4 @@ def task(ctx, config):
     finally:
         log.info('Unmounting ceph-fuse clients...')
         for mount in fuse_mounts.values():
-            mount.umount()
-
-        run.wait([m.fuse_daemon for m in fuse_mounts.values()], timeout=600)
-
-        for mount in fuse_mounts.values():
-            mount.cleanup()
+            mount.umount_wait()
