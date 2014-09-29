@@ -133,8 +133,14 @@ def task(ctx, config):
         for id_, remote in clients:
             log.debug('Unexporting client client.{id}...'.format(id=id_))
             mnt = os.path.join(teuthology.get_testdir(ctx), 'mnt.{id}'.format(id=id_))
-            log.debug('Checking active files on mount {mnt}'.format(mnt=mnt))
             try:
+                log.debug('Syncing client client.{id}'.format(id=id_))
+                remote.run(
+                    args=[
+                        'sync'
+                        ]
+                    )
+                log.debug('Checking active files on mount {mnt}'.format(mnt=mnt))
                 remote.run(
                     args=[
                         'sudo',
