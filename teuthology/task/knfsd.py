@@ -147,8 +147,15 @@ def task(ctx, config):
                 remote.run(
                     args=[
                         'sudo',
+                        'rpc.nfsd',
+                        '0',
+                        ],
+                    )
+                remote.run(
+                    args=[
+                        'sudo',
                         'exportfs',
-                        '-au',
+                        '-f',
                         ],
                     )
                 log.debug('Syncing client client.{id}'.format(id=id_))
