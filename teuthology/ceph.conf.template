@@ -37,6 +37,8 @@
 	osd open classes on start = true
         osd debug pg log writeout = true
 
+	ms die on skipped message = true
+
 	osd deep scrub update digest min age = 30
 
 	osd map max advance = 10
@@ -52,6 +54,8 @@
         mds debug scatterstat = true
         mds verify scatter = true
         mds debug frag = true
+	ms die on skipped message = true
+
 
 [client]
         rgw cache enabled = true
@@ -60,5 +64,6 @@
 	log file = /var/log/ceph/ceph-$name.$pid.log
 	admin socket = /var/run/ceph/ceph-$name.$pid.asok
 
+	ms die on skipped message = true
 
 	client mount timeout = 600
