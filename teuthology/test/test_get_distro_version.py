@@ -1,4 +1,4 @@
-from .. import misc as teuthology
+from .. import provision as teuthology
 
 class Mock: pass
 

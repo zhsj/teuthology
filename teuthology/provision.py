@@ -7,8 +7,6 @@ import yaml
 from .config import config
 from .misc import decanonicalize_hostname
 from .lockstatus import get_status
-from .misc import get_distro
-from .misc import get_distro_version
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +33,53 @@ def _get_downburst_exec():
         if os.access(pth, os.X_OK):
             return pth
     return ''
+
+
+def get_distro(ctx):
+    """
+    Get the name of the distro that we are using (usually the os_type).
+    """
+    os_type = None
+    # first, try to get the os_type from the config or --os-type
+    try:
+        os_type = ctx.config.get('os_type', ctx.os_type)
+    except AttributeError:
+        pass
+    # next, look for an override in the downburst config for os_type
+    try:
+        os_type = ctx.config['downburst'].get('distro', os_type)
+    except (KeyError, AttributeError):
+        pass
+    if os_type is None:
+        # default to ubuntu if we can't find the os_type anywhere else
+        return "ubuntu"
+    return os_type
+
+
+def get_distro_version(ctx):
+    """
+    Get the version of the distro that we are using (release number).
+    """
+    default_os_version = dict(
+        ubuntu="12.04",
+        fedora="18",
+        centos="6.4",
+        opensuse="12.2",
+        sles="11-sp2",
+        rhel="6.4",
+        debian='7.0'
+    )
+    distro = get_distro(ctx)
+    if ctx.os_version is not None:
+        return ctx.os_version
+    try:
+        os_version = ctx.config.get('os_version', default_os_version[distro])
+    except AttributeError:
+        os_version = default_os_version[distro]
+    try:
+        return ctx.config['downburst'].get('distroversion', os_version)
+    except (KeyError, AttributeError):
+        return os_version
 
 
 def create_if_vm(ctx, machine_name):
