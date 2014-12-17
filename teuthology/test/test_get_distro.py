@@ -1,4 +1,4 @@
-from ..provision import get_distro
+from ..misc import get_distro
 
 
 class Mock:
