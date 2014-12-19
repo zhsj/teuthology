@@ -307,10 +307,13 @@ def main(args):
     args["<config>"] = config
     fake_ctx = FakeNamespace(args)
 
-    # store on global config if interactive-on-error, for contextutil.nested()
+    # If interactive-on-error is True, or if teardown is False, store a copy of
+    # the FakeNamespace in the global config so that contextutil.nested() can
+    # get to it. This is a hack.
     # FIXME this should become more generic, and the keys should use
     # '_' uniformly
-    if fake_ctx.config.get('interactive-on-error'):
+    if (fake_ctx.config.get('interactive-on-error') or
+            fake_ctx.config.get('teardown') is False):
         teuthology.config.config.ctx = fake_ctx
 
     try:

@@ -37,13 +37,18 @@ def nested(*managers):
             log.warning('Saw failure, going into interactive mode...')
             interactive.task(ctx=config.ctx, config=None)
     finally:
-        while exits:
-            exit = exits.pop()
-            try:
-                if exit(*exc):
-                    exc = (None, None, None)
-            except Exception:
-                exc = sys.exc_info()
+        if config.ctx and config.ctx.config.get('teardown', True) is False:
+            log.info("Skipping unwind of nested managers")
+        else:
+            while exits:
+                exit = exits.pop()
+                try:
+                    log.info("BEGIN NESTED MANAGER EXIT")
+                    if exit(*exc):
+                        exc = (None, None, None)
+                    log.info("END NESTED MANAGER EXIT")
+                except Exception:
+                    exc = sys.exc_info()
         if exc != (None, None, None):
             # Don't rely on sys.exc_info() still containing
             # the right information. Another exception may

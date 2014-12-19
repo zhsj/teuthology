@@ -110,13 +110,18 @@ def run_tasks(tasks, ctx):
                 log.error(emsg)
                 ctx.summary['failure_info'] = emsg
     finally:
+        if ctx.config.get('teardown', True) is False:
+            log.info("Skipping unwind of manager %s" % taskname)
+            return
         try:
             exc_info = sys.exc_info()
             while stack:
                 taskname, manager = stack.pop()
                 log.debug('Unwinding manager %s', taskname)
                 try:
+                    log.info("BEGIN MANAGER %s EXIT", taskname)
                     suppress = manager.__exit__(*exc_info)
+                    log.info("END MANAGER %s EXIT", taskname)
                 except Exception as e:
                     if isinstance(e, ConnectionLostError):
                         # Prevent connection issues being flagged as failures
