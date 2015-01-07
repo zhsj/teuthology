@@ -217,6 +217,7 @@ def timer(ctx, config):
         duration = time.time() - start
         log.info('Duration was %f seconds', duration)
         ctx.summary['duration'] = duration
+        raise RuntimeError
 
 
 def connect(ctx, config):
