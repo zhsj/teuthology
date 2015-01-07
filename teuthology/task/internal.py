@@ -43,6 +43,9 @@ def base(ctx, config):
     try:
         yield
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         log.info('Tidying up after the test...')
         # if this fails, one of the earlier cleanups is flawed; don't
         # just cram an rm -rf here
@@ -340,6 +343,9 @@ def archive(ctx, config):
         set_status(ctx.summary, 'fail')
         raise
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         passed = get_status(ctx.summary) == 'pass'
         if ctx.archive is not None and \
                 not (ctx.config.get('archive-on-error') and passed):
@@ -388,6 +394,9 @@ def sudo(ctx, config):
     try:
         yield
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         log.info('Restoring {0}...'.format(sudoers_file))
         ctx.cluster.run(
             args="sudo mv -f {path}{ext} {path}".format(
@@ -418,6 +427,9 @@ def coredump(ctx, config):
     try:
         yield
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         run.wait(
             ctx.cluster.run(
                 args=[
