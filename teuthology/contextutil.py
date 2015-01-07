@@ -23,10 +23,12 @@ def nested(*managers):
     try:
         for mgr_fn in managers:
             mgr = mgr_fn()
-            exit = mgr.__exit__
             enter = mgr.__enter__
             vars.append(enter())
-            exits.append(exit)
+            if config.ctx and config.ctx.config.get('teardown') is False:
+                exit = mgr.__exit__
+                log.info("Dropping %s", exit)
+                exits.append(exit)
         yield vars
     except Exception:
         log.exception('Saw exception from nested tasks')
@@ -37,7 +39,7 @@ def nested(*managers):
             log.warning('Saw failure, going into interactive mode...')
             interactive.task(ctx=config.ctx, config=None)
     finally:
-        if config.ctx and config.ctx.config.get('teardown', True) is False:
+        if config.ctx and config.ctx.config.get('teardown') is False:
             log.info("Skipping unwind of nested managers")
         else:
             while exits:
