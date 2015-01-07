@@ -38,9 +38,9 @@ def run_one_task(taskname, **kwargs):
     except AttributeError:
         log.error("No subtask of %s named %s was found", task, subtask)
         raise
-    log.debug("Executing task function")
+    log.debug("run_one_task Executing task function")
     result = fn(**kwargs)
-    log.debug("Task function done")
+    log.debug("run_one_task Task function done")
     return result
 
 
@@ -55,7 +55,9 @@ def run_tasks(tasks, ctx):
             log.info('Running task %s...', taskname)
             manager = run_one_task(taskname, ctx=ctx, config=config)
             if hasattr(manager, '__enter__'):
+                log.debug("run_tasks __enter__() start")
                 manager.__enter__()
+                log.debug("run_tasks __enter() finished")
                 stack.append((taskname, manager))
     except BaseException as e:
         if isinstance(e, ConnectionLostError):
