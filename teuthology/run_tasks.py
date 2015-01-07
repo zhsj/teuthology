@@ -38,7 +38,10 @@ def run_one_task(taskname, **kwargs):
     except AttributeError:
         log.error("No subtask of %s named %s was found", task, subtask)
         raise
-    return fn(**kwargs)
+    log.debug("Executing task function")
+    result = fn(**kwargs)
+    log.debug("Task function done")
+    return result
 
 
 def run_tasks(tasks, ctx):
