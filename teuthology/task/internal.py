@@ -218,7 +218,7 @@ def timer(ctx, config):
         log.info('Duration was %f seconds', duration)
         ctx.summary['duration'] = duration
         import traceback
-        log.debug(traceback.format_exc())
+        log.debug(traceback.format_stack())
         raise RuntimeError
 
 
