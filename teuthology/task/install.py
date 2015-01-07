@@ -802,6 +802,9 @@ def install(ctx, config):
     try:
         yield
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         remove_packages(ctx, config, remove_info)
         remove_sources(ctx, config)
         if project == 'ceph':
@@ -1185,6 +1188,9 @@ def ship_utilities(ctx, config):
     try:
         yield
     finally:
+        if ctx.config.get('teardown') is False:
+            log.info("Skipping teardown")
+            return
         log.info('Removing shipped files: %s...', ' '.join(filenames))
         run.wait(
             ctx.cluster.run(
