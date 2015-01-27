@@ -262,6 +262,8 @@ def run_job(job_config, teuth_bin_path):
         python_path = env.get('PYTHONPATH', '')
         python_path = ':'.join([suite_path, python_path]).strip(':')
         env['PYTHONPATH'] = python_path
+        # this keeps python from creating pyc files
+        env['PYTHONDONTWRITEBYTECODE'] = 1
         p = subprocess.Popen(args=arg, env=env)
         log.info("Job archive: %s", job_config['archive_path'])
         log.info("Job PID: %s", str(p.pid))
