@@ -33,16 +33,20 @@ class CommandFailedError(Exception):
     """
     Exception thrown on command failure
     """
-    def __init__(self, command, exitstatus, node=None):
+    def __init__(self, command, exitstatus, node=None, label=None):
         self.command = command
         self.exitstatus = exitstatus
         self.node = node
+        self.label = label
 
     def __str__(self):
-        return "Command failed on {node} with status {status}: {cmd!r}".format(
+        msg = self.command
+        if self.label:
+            msg = self.label
+        return "Command failed on {node} with status {status}: {msg!r}".format(
             node=self.node,
             status=self.exitstatus,
-            cmd=self.command,
+            msg=msg,
             )
 
 
