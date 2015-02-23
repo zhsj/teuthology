@@ -479,12 +479,8 @@ def _update_rpm_package_list_and_install(ctx, remote, rpm, config):
         log.info('Package version is %s', version)
         break
 
-    tmp_vers = version_no.getvalue().strip()[1:]
-    if '-' in tmp_vers:
-        tmp_vers = tmp_vers.split('-')[0]
     ldir = _get_local_dir(config, remote)
     for cpack in rpm:
-        pkg2add = "{cpack}-{version}".format(cpack=cpack, version=tmp_vers)
         pkg = None
         if ldir:
             pkg = "{ldir}/{cpack}-{trailer}".format(ldir=ldir, cpack=cpack, trailer=tmp_vers)
@@ -496,12 +492,12 @@ def _update_rpm_package_list_and_install(ctx, remote, rpm, config):
                         run.Raw(';'), 'fi']
             )
         if pkg is None:
-            remote.run(args=['sudo', 'yum', 'install', pkg2add, '-y'])
+            remote.run(args=['sudo', 'yum', 'install', cpack, '-y'])
         else:
             remote.run(
                 args = ['if', 'test', run.Raw('!'), '-e',
                         run.Raw(pkg), run.Raw(';'), 'then',
-                        'sudo', 'yum', 'install', pkg2add, '-y',
+                        'sudo', 'yum', 'install', cpack, '-y',
                         run.Raw(';'), 'fi'])
 
 
