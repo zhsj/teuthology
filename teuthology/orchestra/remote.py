@@ -640,32 +640,32 @@ class LibvirtConsole(Console):
 
     def power_cycle(self):
         """
-        Simiulate virtual machine power cycle
+        Simulate virtual machine power cycle
         """
         self.vm_domain.info().destroy()
         self.vm_domain.info().create()
 
     def hard_reset(self):
         """
-        Simiulate hard reset
+        Simulate hard reset
         """
         self.vm_domain.info().destroy()
 
     def power_on(self):
         """
-        Simiulate power on
+        Simulate power on
         """
         self.vm_domain.info().create()
 
     def power_off(self):
         """
-        Simiulate power off
+        Simulate power off
         """
         self.vm_domain.info().destroy()
 
     def power_off_for_interval(self, interval=30):
         """
-        Simiulate power off for an interval.
+        Simulate power off for an interval.
         """
         log.info('Power off {s} for {i} seconds'.format(
             s=self.shortname, i=interval))
