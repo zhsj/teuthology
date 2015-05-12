@@ -359,19 +359,107 @@ def getShortName(name):
     return p.match(hn).groups()[0]
 
 
-class PhysicalConsole():
+class Console(object):
+    def __init__(self, name, logfile=None, timeout=20):
+        self.name = name
+        self.shortname = getShortName(name)
+        self.logfile = logfile
+        self.timeout = timeout
+
+    def _wait_for_login(self, timeout=None, attempts=6):
+        """
+        Wait for login.  Retry if timeouts occur on commands.
+        """
+        assert self.conschild
+        log.debug('Waiting for login prompt on {s}'.format(s=self.shortname))
+        # wait for login prompt to indicate boot completed
+        t = timeout
+        if not t:
+            t = self.timeout
+        for i in range(0, attempts):
+            start = time.time()
+            while time.time() - start < t:
+                self.conschild.send('\n')
+                log.debug('expect: {s} login'.format(s=self.shortname))
+                r = self.conschild.expect(
+                    ['{s} login: '.format(s=self.shortname),
+                     pexpect.TIMEOUT,
+                     pexpect.EOF],
+                    timeout=(t - (time.time() - start)))
+                log.debug('expect before: {b}'.format(b=self.conschild.before))
+                log.debug('expect after: {a}'.format(a=self.conschild.after))
+
+                if r == 0:
+                    return True
+        return False
+
+    def check_power(self, state, timeout=None):
+        """
+        Check power.  Retry if EOF encountered on power check read.
+        Return True if on, False if not
+        """
+        pass
+
+    def check_status(self, timeout=None):
+        """
+        Check status.  Returns True if console is at login prompt
+        """
+        try:
+            # check for login prompt at console
+            return self._wait_for_login(timeout)
+        except Exception as e:
+            log.info('Failed to get console status for {s}: {e}'.format(
+                s=self.shortname, e=e))
+            return False
+
+    def power_cycle(self):
+        """
+        Power cycle and wait for login.  No return.
+        """
+        pass
+
+    def hard_reset(self):
+        """
+        Perform physical hard reset.  Retry if EOF returned from read
+        and wait for login when complete.
+        """
+        pass
+
+    def power_on(self):
+        """
+        Physical power on.  Loop checking cmd return.
+        """
+        pass
+
+    def power_off(self):
+        """
+        Physical power off.  Loop checking cmd return.
+        """
+        pass
+
+    def power_off_for_interval(self, interval=30):
+        """
+        Physical power off for an interval. Wait for login when complete.
+
+        :param interval: Length of power-off period.
+        """
+        pass
+
+
+class IpmiConsole(Console):
     """
-    Physical Console (set from getRemoteConsole)
+    Ipmi Console (set from getRemoteConsole)
     """
     def __init__(self, name, ipmiuser, ipmipass, ipmidomain, logfile=None,
                  timeout=20):
-        self.name = name
-        self.shortname = getShortName(name)
-        self.timeout = timeout
-        self.logfile = None
+        Console.__init__(self, name, logfile, timeout)
         self.ipmiuser = ipmiuser
         self.ipmipass = ipmipass
         self.ipmidomain = ipmidomain
+        self.conschild = self._exec('sol activate')
+
+    def __del__(self):
+        self._exit_session(timeout=20)
 
     def _exec(self, cmd):
         """
@@ -396,42 +484,15 @@ class PhysicalConsole():
             child.logfile = self.logfile
         return child
 
-    def _exit_session(self, child, timeout=None):
-        child.send('~.')
+    def _exit_session(self, timeout=None):
+        self.conschild.send('~.')
         t = timeout
         if not t:
             t = self.timeout
-        r = child.expect(
+        r = self.conschild.expect(
             ['terminated ipmitool', pexpect.TIMEOUT, pexpect.EOF], timeout=t)
         if r != 0:
             self._exec('sol deactivate')
-
-    def _wait_for_login(self, timeout=None, attempts=6):
-        """
-        Wait for login.  Retry if timeouts occur on commands.
-        """
-        log.debug('Waiting for login prompt on {s}'.format(s=self.shortname))
-        # wait for login prompt to indicate boot completed
-        t = timeout
-        if not t:
-            t = self.timeout
-        for i in range(0, attempts):
-            start = time.time()
-            while time.time() - start < t:
-                child = self._exec('sol activate')
-                child.send('\n')
-                log.debug('expect: {s} login'.format(s=self.shortname))
-                r = child.expect(
-                    ['{s} login: '.format(s=self.shortname),
-                     pexpect.TIMEOUT,
-                     pexpect.EOF],
-                    timeout=(t - (time.time() - start)))
-                log.debug('expect before: {b}'.format(b=child.before))
-                log.debug('expect after: {a}'.format(a=child.after))
-
-                self._exit_session(child)
-                if r == 0:
-                    return
 
     def check_power(self, state, timeout=None):
         """
@@ -460,19 +521,6 @@ class PhysicalConsole():
             t *= 2
             total += t
         return False
-
-    def check_status(self, timeout=None):
-        """
-        Check status.  Returns True if console is at login prompt
-        """
-        try:
-            # check for login prompt at console
-            self._wait_for_login(timeout)
-            return True
-        except Exception as e:
-            log.info('Failed to get ipmi console status for {s}: {e}'.format(
-                s=self.shortname, e=e))
-            return False
 
     def power_cycle(self):
         """
@@ -552,16 +600,16 @@ class PhysicalConsole():
             s=self.shortname, i=interval))
 
 
-class VirtualConsole():
+class LibvirtConsole(Console):
     """
-    Virtual Console (set from getRemoteConsole)
+    Libvirt Console (set from getRemoteConsole)
     """
     def __init__(self, name, ipmiuser, ipmipass, ipmidomain, logfile=None,
                  timeout=20):
         if libvirt is None:
             raise RuntimeError("libvirt not found")
+        Console.init(self, name, logfile, timeout)
 
-        self.shortname = getShortName(name)
         status_info = ls.get_status(self.shortname)
         try:
             if status_info.get('is_vm', False):
