@@ -14,6 +14,7 @@ from teuthology import lockstatus as ls
 import os
 import pwd
 import tempfile
+import requests
 
 try:
     import libvirt
@@ -676,6 +677,128 @@ class LibvirtConsole(Console):
             s=self.shortname, i=interval))
 
 
+MGMTNET = '172.20.128.'      # subnet that contains the management IPs
+FIRSTMGMTIP = 2             # hostnum on MGMTNET that contains 0th mgmtIP
+HOSTS_PER_CHASSIS = 64
+NUM_CHASSIS = 3
+RANGE = (1, HOSTS_PER_CHASSIS * NUM_CHASSIS)
+TELNET_BASE_PORT = 2000     # add 10 * (slot) to get port for server (slot)
+
+
+class SeamicroConsole(Console):
+    def __init__(self, name, ipmiuser, ipmipass, ipmidomain, logfile=None,
+                 timeout=20):
+        Console.__init__(self, name, logfile, timeout)
+        self.ipmiuser = ipmiuser
+        self.ipmipass = ipmipass
+        self.mgmthost, self.slot = \
+            self._mgmthost_and_slot(RANGE)
+        self.port = TELNET_BASE_PORT + (self.slot * 10)
+        self.conschild = self._telnet()
+
+    def __del__(self):
+        self.conschild.send('\x1d')     # ^]
+        self.conschild.expect(
+            ['telnet> ', pexpect.TIMEOUT, pexpect.EOF],
+            timeout=self.timeout,
+        )
+        self.conschild.send('close\n')
+
+    def check_power(self, state, timeout=None):
+        """
+        Check power (compare to state).
+        """
+        resp = requests.get(
+            'http://{0}/v2.0/servers/{1}/0'.format(self.mgmthost, self.slot),
+            params={'username': 'admin', 'password': 'seamicro'},
+        )
+        resp.raise_for_status()
+        expected = state == 'on'
+        return expected == resp.json()['active']
+
+    def _mgmthost_and_slot(self, numrange):
+        """
+        translate from hostname to mgmtIP/server number
+        """
+        hostnum = int(re.match('\D+(\d+)', self.shortname).group(1))
+        if hostnum < numrange[0] or hostnum > numrange[1]:
+            raise RuntimeError('Host number limits: {}-{}'.format(*numrange))
+
+        host = MGMTNET + str(FIRSTMGMTIP + ((hostnum - 1) / HOSTS_PER_CHASSIS))
+        slot = (hostnum - 1) % HOSTS_PER_CHASSIS
+
+        return host, slot
+
+    def _telnet(self):
+        ''' open a telnet connection to the proper host and port'''
+        return pexpect.spawn('telnet {0} {1}'.format(self.mgmthost, self.port))
+
+    def _runcmd(self, cmd):
+        pexpect.run(cmd)
+
+    def _powercontrol(self, cmd):
+        ''' perform a raw IPMI command to control a host's power'''
+        cmdmap = {
+            'on': '0x2E 1 0 0x7D 0xAB 1 0',
+            'off': '0x2E 1 0 0x7D 0xAB 5 0',
+            'shutdown': '0x2E 1 0 0x7D 0xAB 6 0',
+            'reset': '0x2E 1 0 0x7D 0xAB 2 0',
+        }
+        ipmicmd = \
+            'ipmitool -H {host} -I lanplus -U {user} -P {pw} raw {cmd} {slot}'
+
+        rawcmd = cmdmap.get(cmd, None)
+        if not rawcmd:
+            raise RuntimeError(
+                'SeamicroConsole._powercontrol: bad command {0}'.format(cmd)
+            )
+        self._runcmd(
+            ipmicmd.format(
+                host=self.mgmthost,
+                user=self.ipmiuser,
+                pw=self.ipmipass,
+                cmd=rawcmd,
+                slot=self.slot
+            )
+        )
+
+    def power_cycle(self):
+        """
+        Power cycle and wait for login.  No return.
+        """
+        self.power_off_for_interval(interval=2)
+        pass
+
+    def hard_reset(self):
+        """
+        Perform physical hard reset.  Retry if EOF returned from read
+        and wait for login when complete.
+        """
+        self._powercontrol('reset')
+        self._wait_for_login()
+
+    def power_on(self):
+        """
+        Physical power on.  Loop checking cmd return.
+        """
+        self._powercontrol('on')
+
+    def power_off(self):
+        """
+        Physical power off.  Loop checking cmd return.
+        """
+        self._powercontrol('off')
+
+    def power_off_for_interval(self, interval=30):
+        """
+        Physical power off for an interval. Wait for login when complete.
+
+        :param interval: Length of power-off period.
+        """
+        self.power_off()
+        time.sleep(interval)
+        self.power_on()
+        self._wait_for_login()
 def getRemoteConsole(name, ipmiuser, ipmipass, ipmidomain, logfile=None,
                      timeout=20):
     """
