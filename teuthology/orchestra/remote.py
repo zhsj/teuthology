@@ -799,13 +799,24 @@ class SeamicroConsole(Console):
         time.sleep(interval)
         self.power_on()
         self._wait_for_login()
+
+
+def getConsoleType(name):
+    typemap = {'typica': SeamicroConsole}
+
+    if misc.is_vm(name):
+        return LibvirtConsole
+    else:
+        for namefrag, constype in typemap.iteritems():
+            if namefrag in name:
+                return constype
+        return IpmiConsole
+
+
 def getRemoteConsole(name, ipmiuser, ipmipass, ipmidomain, logfile=None,
                      timeout=20):
     """
-    Return either VirtualConsole or PhysicalConsole depending on name.
+    Return appropriate Console object type for name
     """
-    if misc.is_vm(name):
-        return VirtualConsole(name, ipmiuser, ipmipass, ipmidomain, logfile,
-                              timeout)
-    return PhysicalConsole(name, ipmiuser, ipmipass, ipmidomain, logfile,
-                           timeout)
+    klass = getConsoleType(name)
+    return klass(name, ipmiuser, ipmipass, ipmidomain, logfile, timeout)
