@@ -29,6 +29,7 @@ def parse_args():
             teuthology-lock --list --brief --owner user@host
             teuthology-lock --brief
             teuthology-lock --update --status down --desc testing plana01
+            teuthology-lock --power cycle plana01
         '''),
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
@@ -88,6 +89,11 @@ def parse_args():
         action='store_true',
         default=False,
         help='summarize locked-machine counts by owner',
+    )
+    group.add_argument(
+        '--power',
+        default=None,
+        help='off|on|cycle to manage power',
     )
     parser.add_argument(
         '-a', '--all',

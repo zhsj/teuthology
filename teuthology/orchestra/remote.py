@@ -365,6 +365,7 @@ class Console(object):
         self.name = name
         self.shortname = getShortName(name)
         self.logfile = logfile
+        # XXX verify reasonable uses of logfile
         self.timeout = timeout
 
     def _wait_for_login(self, timeout=None, attempts=6):
@@ -734,7 +735,7 @@ class SeamicroConsole(Console):
         return pexpect.spawn('telnet {0} {1}'.format(self.mgmthost, self.port))
 
     def _runcmd(self, cmd):
-        pexpect.run(cmd)
+        log.info(pexpect.run(cmd))
 
     def _powercontrol(self, cmd):
         ''' perform a raw IPMI command to control a host's power'''

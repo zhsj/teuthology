@@ -14,6 +14,7 @@ from . import misc
 from . import provision
 from .config import config
 from .lockstatus import get_status
+from .orchestra.remote import getRemoteConsole
 
 log = logging.getLogger(__name__)
 # Don't need to see connection pool INFO messages
@@ -173,7 +174,7 @@ def main(ctx):
             '-f is only supported by --lock and --unlock'
     if machines:
         assert ctx.lock or ctx.unlock or ctx.list or ctx.list_targets \
-            or ctx.update or ctx.brief, \
+            or ctx.update or ctx.brief or ctx.power, \
             'machines cannot be specified with that operation'
     else:
         assert ctx.num_to_lock or ctx.list or ctx.list_targets or \
@@ -332,6 +333,17 @@ def main(ctx):
         if ctx.desc is not None or ctx.status is not None:
             for machine in machines_to_update:
                 update_lock(machine, ctx.desc, ctx.status)
+
+    elif ctx.power:
+        assert ctx.machines, 'Must supply machines for power commands'
+
+        statuses = get_statuses(ctx.machines)
+        user = misc.get_user()
+        for status in statuses:
+            assert status['locked_by'] == user, \
+                'Must own machines to powermanage them'
+
+        ret = do_power(ctx, ctx.machines, ctx.power)
 
     return ret
 
@@ -707,3 +719,27 @@ def do_summary(ctx):
 
     print "         ---  ---"
     print "{cnt:12d}  {up:3d}".format(cnt=total_count, up=total_up)
+
+
+def do_power(ctx, machines, powercmd):
+    for key in ['ipmi_user', 'ipmi_password', 'ipmi_domain']:
+        assert key in ctx.teuthology_config, \
+           'power commands require %s in ~/.teuthology.yaml' % key
+    cmdmap = {
+        'off': 'power_off',
+        'on': 'power_on',
+        'cycle': 'power_cycle',
+    }
+    func = cmdmap.get(powercmd, None)
+    assert func, 'Invalid power command (on|off|cycle)'
+
+    for machine in machines:
+        cons = getRemoteConsole(
+            machine,
+            ctx.teuthology_config['ipmi_user'],
+            ctx.teuthology_config['ipmi_password'],
+            ctx.teuthology_config['ipmi_domain'],
+        )
+        consfunc = getattr(cons, func, None)
+        assert consfunc, 'Can''t power %s %s' % (powercmd, machine)
+        consfunc()
