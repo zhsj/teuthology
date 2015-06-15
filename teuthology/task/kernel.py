@@ -150,7 +150,7 @@ def need_to_install(ctx, role, version):
     cur_version = uname_fp.getvalue().rstrip('\n')
     log.debug('current kernel version is {ver}'.format(ver=cur_version))
 
-    if '.' in version:
+    if '.' in str(version):
         # version is utsrelease, yay
         if cur_version == version:
             log.debug('utsrelease strings match, do not need to install')
