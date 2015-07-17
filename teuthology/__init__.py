@@ -6,6 +6,7 @@ monkey.patch_all()
 import logging
 import os
 import sys
+import re
 
 
 __version__ = '0.1.0'
@@ -31,6 +32,16 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+class Formatter(logging.Formatter):
+    ansi_escapes_regexp = re.compile(r'\x1b[^m]*m')
+
+    def format(self, record):
+        super(Formatter, self).format(record)
+        new_message = ansi_escapes_regexp.sub('', record['message'])
+        record['message'] = new_message
+        return record
+
+
 def setup_log_file(log_path):
     root_logger = logging.getLogger()
     handlers = root_logger.handlers
@@ -40,7 +51,7 @@ def setup_log_file(log_path):
             log.debug("Already logging to %s; not adding new handler",
                       log_path)
             return
-    formatter = logging.Formatter(
+    formatter = Formatter(
         fmt=u'%(asctime)s.%(msecs)03d %(levelname)s:%(name)s:%(message)s',
         datefmt='%Y-%m-%dT%H:%M:%S')
     handler = logging.FileHandler(filename=log_path)
