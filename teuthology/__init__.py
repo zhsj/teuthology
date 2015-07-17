@@ -37,7 +37,7 @@ class Formatter(logging.Formatter):
 
     def format(self, record):
         super(Formatter, self).format(record)
-        new_message = ansi_escapes_regexp.sub('', record['message'])
+        new_message = self.ansi_escapes_regexp.sub('', record['message'])
         record['message'] = new_message
         return record
 
