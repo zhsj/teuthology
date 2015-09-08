@@ -195,22 +195,32 @@ class Remote(object):
             args=args,
             )
 
-    def chcon(self, file_path, context):
+    def set_selinux_context(self, file_path, context, unset=False):
         """
-        Set the SELinux context of a given file.
+        Set the SELinux context of a given file using ``semanage`` and
+        ``restorecon``
 
         VMs and non-RPM-based hosts will skip this operation because ours
         currently have SELinux disabled.
 
         :param file_path: The path to the file
         :param context:   The SELinux context to be used
+        :param unset:     If True, restore the file's context to its default.
         """
+        if file_path[0] != os.path.sep:
+            raise ValueError(
+                "file_path must be an absolute path! Got: %s" % file_path)
         if self.os.package_type != 'rpm':
             return
         if misc.is_vm(self.shortname):
             return
-        self.run(args="sudo chcon {con} {path}".format(
-            con=context, path=file_path))
+        action = '--delete' if unset else '--add'
+        args = [
+            'sudo', 'semanage', 'fcontext',
+            action, '--type', context, file_path,
+            run.Raw('&&'), 'restorecon', '-v', file_path
+        ]
+        self.run(args=args)
 
     def _sftp_put_file(self, local_path, remote_path):
         """
