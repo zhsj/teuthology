@@ -615,6 +615,7 @@ def syslog(ctx, config):
     CONF = '/etc/rsyslog.d/80-cephtest.conf'
     kern_log = '{log_dir}/kern.log'.format(log_dir=log_dir)
     misc_log = '{log_dir}/misc.log'.format(log_dir=log_dir)
+    log_context = 'system_u:object_r:var_log_t:s0'
     conf_lines = [
         'kern.* -{kern_log};RSYSLOG_FileFormat'.format(kern_log=kern_log),
         '*.*;kern.none -{misc_log};RSYSLOG_FileFormat'.format(
@@ -623,10 +624,7 @@ def syslog(ctx, config):
     conf_fp = StringIO('\n'.join(conf_lines))
     try:
         for rem in ctx.cluster.remotes.iterkeys():
-            log_context = 'system_u:object_r:var_log_t:s0'
-            for log_path in (kern_log, misc_log):
-                rem.run(args='touch %s' % log_path)
-                rem.chcon(log_path, log_context)
+            rem.set_selinux_context(archive_dir, log_context)
             misc.sudo_write_file(
                 remote=rem,
                 path=CONF,
@@ -670,6 +668,9 @@ def syslog(ctx, config):
         )
         # race condition: nothing actually says rsyslog had time to
         # flush the file fully. oh well.
+
+        for rem in ctx.cluster.remotes.iterkeys():
+            rem.set_selinux_context(archive_dir, log_context, unset=True)
 
         log.info('Checking logs for errors...')
         for rem in ctx.cluster.remotes.iterkeys():
