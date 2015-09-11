@@ -195,7 +195,8 @@ class Remote(object):
             args=args,
             )
 
-    def set_selinux_context(self, file_path, context, unset=False):
+    def set_selinux_context(self, file_path, context, unset=False,
+                            restorecon=False):
         """
         Set the SELinux context of a given file using ``semanage`` and
         ``restorecon``
@@ -203,9 +204,10 @@ class Remote(object):
         VMs and non-RPM-based hosts will skip this operation because ours
         currently have SELinux disabled.
 
-        :param file_path: The path to the file
-        :param context:   The SELinux context to be used
-        :param unset:     If True, restore the file's context to its default.
+        :param file_path:  The path to the file
+        :param context:    The SELinux context to be used
+        :param unset:      If True, restore the file's context to its default.
+        :param restorecon: Whether or not to run restorecon after semanage.
         """
         if file_path[0] != os.path.sep:
             raise ValueError(
