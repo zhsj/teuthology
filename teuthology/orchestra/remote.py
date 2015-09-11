@@ -196,7 +196,7 @@ class Remote(object):
             )
 
     def set_selinux_context(self, file_path, context, unset=False,
-                            restorecon=False):
+                            restorecon=True):
         """
         Set the SELinux context of a given file using ``semanage`` and
         ``restorecon``
