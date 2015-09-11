@@ -628,7 +628,8 @@ def syslog(ctx, config):
             for log_path in (kern_log, misc_log):
                 rem.run(args='touch %s' % log_path)
                 rem.run(args='ls -lZ %s' % log_path)
-            rem.set_selinux_context("%s/*.log" % log_dir, log_context)
+            rem.semanage("%s/*.log" % log_dir, log_context)
+            rem.restorecon(log_dir)
             for log_path in (kern_log, misc_log):
                 rem.run(args='ls -lZ %s' % log_path)
             misc.sudo_write_file(
