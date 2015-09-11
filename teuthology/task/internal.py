@@ -615,7 +615,8 @@ def syslog(ctx, config):
     CONF = '/etc/rsyslog.d/80-cephtest.conf'
     kern_log = '{log_dir}/kern.log'.format(log_dir=log_dir)
     misc_log = '{log_dir}/misc.log'.format(log_dir=log_dir)
-    log_context = 'system_u:object_r:var_log_t:s0'
+    #log_context = 'system_u:object_r:var_log_t:s0'
+    log_context = 'var_log_t'
     conf_lines = [
         'kern.* -{kern_log};RSYSLOG_FileFormat'.format(kern_log=kern_log),
         '*.*;kern.none -{misc_log};RSYSLOG_FileFormat'.format(
