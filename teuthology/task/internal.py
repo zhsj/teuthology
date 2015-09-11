@@ -627,11 +627,8 @@ def syslog(ctx, config):
         for rem in ctx.cluster.remotes.iterkeys():
             for log_path in (kern_log, misc_log):
                 rem.run(args='touch %s' % log_path)
-                rem.run(args='ls -lZ %s' % log_path)
             rem.semanage(semanage_path_spec, log_context)
             rem.restorecon(log_dir)
-            for log_path in (kern_log, misc_log):
-                rem.run(args='ls -lZ %s' % log_path)
             misc.sudo_write_file(
                 remote=rem,
                 path=CONF,
