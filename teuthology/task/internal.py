@@ -615,7 +615,7 @@ def syslog(ctx, config):
     CONF = '/etc/rsyslog.d/80-cephtest.conf'
     kern_log = '{log_dir}/kern.log'.format(log_dir=log_dir)
     misc_log = '{log_dir}/misc.log'.format(log_dir=log_dir)
-    #log_context = 'system_u:object_r:var_log_t:s0'
+    semanage_path_spec = "%s/.*\.log" % log_dir
     log_context = 'var_log_t'
     conf_lines = [
         'kern.* -{kern_log};RSYSLOG_FileFormat'.format(kern_log=kern_log),
@@ -628,7 +628,7 @@ def syslog(ctx, config):
             for log_path in (kern_log, misc_log):
                 rem.run(args='touch %s' % log_path)
                 rem.run(args='ls -lZ %s' % log_path)
-            rem.semanage("%s/.*\.log" % log_dir, log_context)
+            rem.semanage(semanage_path_spec, log_context)
             rem.restorecon(log_dir)
             for log_path in (kern_log, misc_log):
                 rem.run(args='ls -lZ %s' % log_path)
@@ -676,8 +676,9 @@ def syslog(ctx, config):
         # race condition: nothing actually says rsyslog had time to
         # flush the file fully. oh well.
 
-        #for rem in ctx.cluster.remotes.iterkeys():
-        #    rem.set_selinux_context(archive_dir, log_context, unset=True)
+        for rem in ctx.cluster.remotes.iterkeys():
+            rem.semanage(semanage_path_spec, log_context, unset=True)
+            rem.restorecon(log_dir)
 
         log.info('Checking logs for errors...')
         for rem in ctx.cluster.remotes.iterkeys():
