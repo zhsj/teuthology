@@ -626,6 +626,9 @@ def syslog(ctx, config):
     try:
         for rem in ctx.cluster.remotes.iterkeys():
             rem.set_selinux_context(archive_dir, log_context)
+            for log_path in (kern_log, misc_log):
+                rem.run(args='touch %s' % log_path)
+                rem.run(args='ls -lZ %s' % log_path)
             misc.sudo_write_file(
                 remote=rem,
                 path=CONF,
@@ -670,8 +673,8 @@ def syslog(ctx, config):
         # race condition: nothing actually says rsyslog had time to
         # flush the file fully. oh well.
 
-        for rem in ctx.cluster.remotes.iterkeys():
-            rem.set_selinux_context(archive_dir, log_context, unset=True)
+        #for rem in ctx.cluster.remotes.iterkeys():
+        #    rem.set_selinux_context(archive_dir, log_context, unset=True)
 
         log.info('Checking logs for errors...')
         for rem in ctx.cluster.remotes.iterkeys():
