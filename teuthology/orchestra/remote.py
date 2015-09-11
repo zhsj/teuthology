@@ -220,8 +220,9 @@ class Remote(object):
         args = [
             'sudo', 'semanage', 'fcontext',
             action, '--type', context, file_path,
-            run.Raw('&&'), 'restorecon', '-v', file_path
         ]
+        if restorecon:
+            args.extend([run.Raw('&&'), 'sudo', 'restorecon', '-v', file_path])
         self.run(args=args)
 
     def _sftp_put_file(self, local_path, remote_path):
