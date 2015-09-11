@@ -195,8 +195,7 @@ class Remote(object):
             args=args,
             )
 
-    def set_selinux_context(self, file_path, context, unset=False,
-                            restorecon=True):
+    def semanage(self, path_spec, context, unset=False):
         """
         Set the SELinux context of a given file using ``semanage`` and
         ``restorecon``
@@ -204,14 +203,13 @@ class Remote(object):
         VMs and non-RPM-based hosts will skip this operation because ours
         currently have SELinux disabled.
 
-        :param file_path:  The path to the file
+        :param path_spec:  The path spec to be passed to semanage
         :param context:    The SELinux context to be used
         :param unset:      If True, restore the file's context to its default.
-        :param restorecon: Whether or not to run restorecon after semanage.
         """
-        if file_path[0] != os.path.sep:
+        if path_spec[0] != os.path.sep:
             raise ValueError(
-                "file_path must be an absolute path! Got: %s" % file_path)
+                "path_spec must be an absolute path! Got: %s" % path_spec)
         if self.os.package_type != 'rpm':
             return
         if misc.is_vm(self.shortname):
@@ -219,12 +217,22 @@ class Remote(object):
         action = '--delete' if unset else '--add'
         args = [
             'sudo', 'semanage', 'fcontext',
-            action, '--type', context, file_path,
+            action, '--type', context, path_spec,
         ]
-        if restorecon:
-            args.extend(
-                [run.Raw('&&'), 'sudo', 'restorecon', '-vR', file_path]
-            )
+        self.run(args=args)
+
+    def restorecon(self, path, recurse=True, verbose=True):
+        """
+        Run restorecon to restore SELinux contexts
+
+        VMs and non-RPM-based hosts will skip this operation because ours
+        currently have SELinux disabled.
+
+        :param path:   The path to pass to restorecon
+        :param recurse: Whether or not to recurse into subdirectories
+        :param verbose: Whether or not to be verbose
+        """
+        args = ['sudo', 'restorecon', '-vR', path]
         self.run(args=args)
 
     def _sftp_put_file(self, local_path, remote_path):
