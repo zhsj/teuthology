@@ -625,9 +625,11 @@ def syslog(ctx, config):
     conf_fp = StringIO('\n'.join(conf_lines))
     try:
         for rem in ctx.cluster.remotes.iterkeys():
-            rem.set_selinux_context(archive_dir, log_context)
             for log_path in (kern_log, misc_log):
                 rem.run(args='touch %s' % log_path)
+                rem.run(args='ls -lZ %s' % log_path)
+            rem.set_selinux_context("%s/*.log" % log_dir, log_context)
+            for log_path in (kern_log, misc_log):
                 rem.run(args='ls -lZ %s' % log_path)
             misc.sudo_write_file(
                 remote=rem,
