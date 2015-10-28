@@ -243,5 +243,6 @@ def nuke_targets(targets_dict, owner):
         line = line.replace('\r', '').replace('\n', '')
         log.info(line)
         sys.stdout.flush()
+    proc.wait()
 
     os.unlink(target_file.name)
