@@ -261,8 +261,8 @@ def _update_rpm_package_list_and_install(ctx, remote, rpm, config):
         args=[
             'sudo', 'yum', 'clean', 'all',
         ])
-    remote.run(args = ['sudo', 'yum', 'install', 'epel-release', '-y',])
-    remote.run(args=['sudo', 'yum', 'erase', 'yum-plugin-priorities', '-y'])
+    #remote.run(args = ['sudo', 'yum', 'install', 'epel-release', '-y',])
+    #remote.run(args=['sudo', 'yum', 'erase', 'yum-plugin-priorities', '-y'])
     ldir = _get_local_dir(config, remote)
     for cpack in rpm:
         pkg = None
