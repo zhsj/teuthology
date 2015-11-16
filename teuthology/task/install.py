@@ -261,11 +261,9 @@ def _update_rpm_package_list_and_install(ctx, remote, rpm, config):
         args=[
             'sudo', 'yum', 'clean', 'all',
         ])
-    remote.run(args = ['sudo', 'yum', 'remove', 'librados2', 'libcephfs1', '-y',])
+    remote.run(args = ['sudo', 'yum', 'downgrade', 'librados2', 'librbd1', 'libcephfs1', '-y',])
     ldir = _get_local_dir(config, remote)
-    lrpm = list(rpm)
-    lrpm.append('qemu-kvm')
-    for cpack in lrpm:
+    for cpack in rpm:
         pkg = None
         if ldir:
             pkg = "{ldir}/{cpack}".format(
