@@ -270,7 +270,7 @@ class ResultsReporter(object):
         for job_id in job_ids:
             self.report_job(run_name, job_id, dead=dead)
 
-    def report_job(self, run_name, job_id, job_info=None, dead=False):
+    def report_job(self, run_name, job_id=None, job_info=None, dead=False):
         """
         Report a single job to the results server.
 
@@ -291,15 +291,20 @@ class ResultsReporter(object):
         headers = {'content-type': 'application/json'}
         response = self.session.post(run_uri, data=job_json, headers=headers)
 
-        if response.status_code == 200:
-            return job_id
-
         # This call is wrapped in a try/except because of:
         #  http://tracker.ceph.com/issues/8166
         try:
             resp_json = response.json()
         except ValueError:
             resp_json = dict()
+
+        if job_id:
+            assert job_id == resp_json['job_id']
+        else:
+            job_id = resp_json['job_id']
+
+        if response.status_code == 200:
+            return job_id
 
         if resp_json:
             msg = resp_json.get('message', '')
@@ -400,20 +405,20 @@ class ResultsReporter(object):
         response.raise_for_status()
 
 
-def push_job_info(run_name, job_id, job_info, base_uri=None):
+def push_job_info(run_name, job_info, job_id=None, base_uri=None):
     """
     Push a job's info (example: ctx.config) to the results server.
 
     :param run_name: The name of the run.
-    :param job_id:   The job's id
     :param job_info: A dict containing the job's information.
+    :param job_id:   The job's id
     :param base_uri: The endpoint of the results server. If you leave it out
                      ResultsReporter will ask teuthology.config.
     """
     reporter = ResultsReporter()
     if not reporter.base_uri:
         return
-    reporter.report_job(run_name, job_id, job_info)
+    return reporter.report_job(run_name, job_id, job_info)
 
 
 def try_push_job_info(job_config, extra_info=None):
@@ -433,12 +438,8 @@ def try_push_job_info(job_config, extra_info=None):
         log.warning('No result_server in config; not reporting results')
         return
 
-    if job_config.get('job_id') is None:
-        log.warning('No job_id found; not reporting results')
-        return
-
     run_name = job_config['name']
-    job_id = job_config['job_id']
+    job_id = job_config.get('job_id')
 
     if extra_info is not None:
         job_info = extra_info.copy()
@@ -448,8 +449,7 @@ def try_push_job_info(job_config, extra_info=None):
 
     try:
         log.debug("Pushing job info to %s", config.results_server)
-        push_job_info(run_name, job_id, job_info)
-        return
+        return push_job_info(run_name, job_info, job_id)
     except report_exceptions:
         log.exception("Could not report results to %s",
                       config.results_server)
