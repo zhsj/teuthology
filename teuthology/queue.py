@@ -2,7 +2,10 @@ import beanstalkc
 import yaml
 import logging
 import pprint
+import requests
 import sys
+import urlparse
+
 from collections import OrderedDict
 
 from .config import config
@@ -11,14 +14,16 @@ from . import report
 log = logging.getLogger(__name__)
 
 
-def connect():
+def get_job():
     host = config.queue_host
     port = config.queue_port
     if host is None or port is None:
         raise RuntimeError(
-            'Beanstalk queue information not found in {conf_path}'.format(
+            'Queue information not found in {conf_path}'.format(
                 conf_path=config.teuthology_yaml))
-    return beanstalkc.Connection(host=host, port=port)
+    queue_url = urlparse.urljoin(host, 'queue')
+    response = requests.get(queue_url)
+    return response.json()
 
 
 def watch_tube(connection, tube_name):
