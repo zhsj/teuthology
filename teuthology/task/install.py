@@ -262,6 +262,9 @@ def _update_rpm_package_list_and_install(ctx, remote, rpm, config):
             'sudo', 'yum', 'clean', 'all',
         ])
 
+    remote.run(
+        args = ['sudo', 'yum', 'remove', 'librados2', 'libcephfs1', '-y',
+        ])
     ldir = _get_local_dir(config, remote)
     for cpack in rpm:
         pkg = None
