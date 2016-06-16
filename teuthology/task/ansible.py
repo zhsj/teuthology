@@ -116,6 +116,10 @@ class Ansible(Task):
         self.get_inventory() or self.generate_hosts_file()
         if not hasattr(self, 'playbook_file'):
             self.generate_playbook()
+        self.cluster.run(args="echo $PATH")
+        self.cluster.run(args="sudo su - -c 'echo $PATH'")
+        self.cluster.run(args="python --version")
+        self.cluster.run(args="sudo python --version")
 
     @property
     def failure_log(self):
