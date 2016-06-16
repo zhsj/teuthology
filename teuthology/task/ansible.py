@@ -118,6 +118,8 @@ class Ansible(Task):
             self.generate_playbook()
         self.cluster.run(args="echo $PATH")
         self.cluster.run(args="sudo su - -c 'echo $PATH'")
+        self.cluster.run(args="ls -l /usr/bin/python")
+        self.cluster.run(args="sudo ls -l /usr/bin/python")
         self.cluster.run(args="python --version")
         self.cluster.run(args="sudo python --version")
 
