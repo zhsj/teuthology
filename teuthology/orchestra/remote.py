@@ -1,20 +1,23 @@
 """
 Support for paramiko remote objects.
 """
-from . import run
-from .opsys import OS
 import connection
-from teuthology import misc
 import time
 import pexpect
 import re
 import logging
 from cStringIO import StringIO
-from teuthology import lockstatus as ls
 import os
 import pwd
 import tempfile
 import netaddr
+
+from teuthology import lockstatus as ls
+from teuthology import misc
+from teuthology.config import config
+
+from . import run
+from .opsys import OS
 
 try:
     import libvirt
@@ -51,7 +54,7 @@ class Remote(object):
         self._shortname = shortname or hostname.split('.')[0]
         self._host_key = host_key
         self.keep_alive = keep_alive
-        self.console = console
+        self._console = console
         self.ssh = ssh
 
     def connect(self, timeout=None):
@@ -423,6 +426,17 @@ class Remote(object):
         node['ssh_pub_key'] = self.host_key
         node['up'] = True
         return node
+
+    @property
+    def console(self):
+        if not self._console:
+            self._console = getRemoteConsole(
+                self.name,
+                config.ipmi_user,
+                config.ipmi_password,
+                config.ipmi_domain,
+            )
+        return self._console
 
     def __del__(self):
         if self.ssh is not None:
