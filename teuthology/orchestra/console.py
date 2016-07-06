@@ -142,15 +142,18 @@ class PhysicalConsole():
                 s=self.shortname, e=e))
             return False
 
-    def power_cycle(self):
+    def power_cycle(self, wait=True):
         """
         Power cycle and wait for login.
+
+        :param wait: Whether to wait for a login prompt after rebooting
         """
         log.info('Power cycling {s}'.format(s=self.shortname))
         child = self._exec('power cycle')
         child.expect('Chassis Power Control: Cycle', timeout=self.timeout)
-        self._wait_for_login()
-        log.info('Power cycle for {s} completed'.format(s=self.shortname))
+        if wait:
+            self._wait_for_login()
+            log.info('Power cycle for {s} completed'.format(s=self.shortname))
 
     def hard_reset(self):
         """
