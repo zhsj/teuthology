@@ -152,6 +152,8 @@ class PhysicalConsole():
         child = self._exec('power cycle')
         child.expect('Chassis Power Control: Cycle', timeout=self.timeout)
         if wait:
+            # Give the machine time to halt
+            time.sleep(10)
             self._wait_for_login()
             log.info('Power cycle for {s} completed'.format(s=self.shortname))
 
