@@ -34,7 +34,7 @@ class Edeploy(object):
         time.sleep(10)
         with safe_while(sleep=10, tries=60) as proceed:
             while proceed():
-                if self.remote.is_online or self.remote.reconnect:
+                if self.remote.is_online or self.remote.reconnect():
                     return True
 
     def create(self):
