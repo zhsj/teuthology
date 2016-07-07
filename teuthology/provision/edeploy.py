@@ -19,6 +19,7 @@ class Edeploy(object):
 
     def __init__(self, name, os_type, os_version):
         self.name = name
+        self.remote = remote.Remote(self.name)
         self.os_type = os_type
         self.os_version = os_version
 
@@ -28,6 +29,13 @@ class Edeploy(object):
         os_type = self.os_type.lower()
         os_version = self.os_version.replace('.', '')
         return os_type + os_version
+
+    def _wait_for_online(self):
+        time.sleep(10)
+        with safe_while(sleep=10, tries=60) as proceed:
+            while proceed():
+                if self.remote.is_online or self.remote.reconnect:
+                    return True
 
     def create(self):
         url = self.nextboot_url_templ.format(
@@ -42,15 +50,9 @@ class Edeploy(object):
             host=self.name,
             profile=self.profile,
         )
-        rem = remote.Remote(self.name)
         # Reboot the machine
-        rem.console.power_cycle(wait=False)
-        # Wait for the machine to come back online
-        time.sleep(10)
-        with safe_while(sleep=10, tries=60) as proceed:
-            while proceed():
-                if rem.is_online or rem.reconnect:
-                    return True
+        self.remote.console.power_cycle(wait=False)
+        return self._wait_for_online()
 
     def destroy(self):
         pass
