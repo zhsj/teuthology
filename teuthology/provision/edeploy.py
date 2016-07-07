@@ -2,6 +2,7 @@ import logging
 import os
 import requests
 import subprocess
+import time
 
 from ..contextutil import safe_while
 from ..orchestra import remote
@@ -45,6 +46,7 @@ class Edeploy(object):
         # Reboot the machine
         rem.console.power_cycle(wait=False)
         # Wait for the machine to come back online
+        time.sleep(10)
         with safe_while(sleep=10, tries=60) as proceed:
             while proceed():
                 if rem.is_online or rem.reconnect:
