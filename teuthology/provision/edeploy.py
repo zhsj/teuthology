@@ -3,6 +3,9 @@ import os
 import requests
 import subprocess
 
+from ..contextutil import safe_while
+from ..orchestra import remote
+
 log = logging.getLogger(__name__)
 
 edeploy_host = 'edeploy.front.sepia.ceph.com'
@@ -31,13 +34,21 @@ class Edeploy(object):
             host=self.name,
             profile=self.profile,
         )
+        # Tell edeploy to reimage the machine
         resp = requests.get(url)
         resp.raise_for_status()
         assert resp.text == self.ok_msg_templ.format(
             host=self.name,
             profile=self.profile,
         )
-        return True
+        rem = remote.Remote(self.name)
+        # Reboot the machine
+        rem.console.power_cycle(wait=False)
+        # Wait for the machine to come back online
+        with safe_while(sleep=10, tries=60) as proceed:
+            while proceed():
+                if rem.is_online or rem.reconnect:
+                    return True
 
     def destroy(self):
         pass
