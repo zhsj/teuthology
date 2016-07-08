@@ -43,6 +43,10 @@ class Edeploy(object):
             host=self.name,
             profile=self.profile,
         )
+        log.info("Deploying {host} with {profile}".format(
+            host=self.name,
+            profile=self.profile,
+        ))
         # Tell edeploy to reimage the machine
         resp = requests.get(url)
         resp.raise_for_status()
