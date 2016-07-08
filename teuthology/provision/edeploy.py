@@ -25,10 +25,10 @@ class Edeploy(object):
 
     @property
     def profile(self):
-        # FIXME: ugh
-        os_type = self.os_type.lower()
-        os_version = self.os_version.replace('.', '')
-        return os_type + os_version
+        return '_'.join([
+            self.os_type.lower(),
+            self.os_version,
+        ])
 
     def _wait_for_online(self):
         time.sleep(10)
