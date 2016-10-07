@@ -3,6 +3,7 @@ import os
 import pexpect
 import subprocess
 import time
+import atexit
 
 from teuthology import lockstatus as ls
 from teuthology.config import config
@@ -61,10 +62,31 @@ class PhysicalConsole():
         Run a command using pexpect.spawn(). Return the child object.
         """
         log.debug('pexpect command: %s', cmd)
-        return pexpect.spawn(
+        child = pexpect.spawn(
             cmd,
             logfile=self.logfile,
         )
+        atexit.register(self._kill_child, child)
+        return child
+
+    @staticmethod
+    def _kill_child(child):
+        """
+        A method to use with atexit to ensure the child process dies when the
+        parent does.
+        """
+        try:
+            if hasattr(child, 'kill'):
+                child.kill(15)
+            elif hasattr(child, 'terminate'):
+                child.terminate()
+            else:
+                log.error(
+                    "Unable to determine what the child process is: %s",
+                    child
+                )
+        except Exception:
+            log.exception("Failed to kill the child process!")
 
     def _get_console(self, readonly=True):
         def start():
@@ -298,6 +320,7 @@ class PhysicalConsole():
             log.error("conserver failed to get the console; will try ipmitool")
             self.has_conserver = False
             proc = start()
+        atexit.register(self._kill_child, proc)
         return proc
 
 
