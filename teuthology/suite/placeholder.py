@@ -99,4 +99,6 @@ dict_templ = {
     'suite_branch': Placeholder('suite_branch'),
     'suite_sha1': Placeholder('suite_hash'),
     'tasks': [],
+    'colocated_suite': Placeholder('colocated_suite'),
+    'colocated_suite_path': Placeholder('colocated_suite_path'),
 }
