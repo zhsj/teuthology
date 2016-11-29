@@ -28,6 +28,7 @@ class Run(object):
     __slots__ = (
         'args', 'name', 'base_config', 'suite_repo_path', 'base_yaml_paths',
         'base_args', 'package_versions', 'kernel_dict', 'config_input',
+        'colocated_suite', 'colocated_suite_path', 'suite_repo_name',
     )
 
     def __init__(self, args):
@@ -36,6 +37,14 @@ class Run(object):
         """
         self.args = args
         self.name = self.make_run_name()
+
+        if args.suite_dir or args.colocated_suite is None:
+            self.colocated_suite = False
+            self.colocated_suite_path = ''
+        else:
+            self.colocated_suite = True
+            self.colocated_suite_path = args.colocated_suite
+
         self.base_config = self.create_initial_config()
         # caches package versions to minimize requests to gbs
         self.package_versions = dict()
@@ -44,12 +53,17 @@ class Run(object):
             self.suite_repo_path = self.args.suite_dir
         else:
             self.suite_repo_path = util.fetch_repos(
-                self.base_config.suite_branch, test_name=self.name)
+                self.base_config.suite_branch,
+                test_name=self.name,
+                colocated_suite=self.colocated_suite,
+            )
 
         # Interpret any relative paths as being relative to ceph-qa-suite
         # (absolute paths are unchanged by this)
-        self.base_yaml_paths = [os.path.join(self.suite_repo_path, b) for b in
-                                self.args.base_yaml_paths]
+        self.base_yaml_paths = [
+            os.path.join(self.suite_repo_path, self.colocated_suite_path, b)
+            for b in self.args.base_yaml_paths
+        ]
 
     def make_run_name(self):
         """
@@ -84,6 +98,7 @@ class Run(object):
         # logging.
         self.choose_ceph_version(ceph_hash)
         teuthology_branch = self.choose_teuthology_branch()
+        self.choose_suite_repo_name()
         suite_branch = self.choose_suite_branch()
         suite_hash = self.choose_suite_hash(suite_branch)
 
@@ -189,30 +204,49 @@ class Run(object):
         log.info("teuthology branch: %s", teuthology_branch)
         return teuthology_branch
 
+    def choose_suite_repo_name(self):
+        if self.colocated_suite:
+            name = 'ceph'
+        else:
+            name = 'ceph-qa-suite'
+        self.suite_repo_name = name
+
     def choose_suite_branch(self):
         suite_branch = self.args.suite_branch
         ceph_branch = self.args.ceph_branch
         if suite_branch and suite_branch != 'master':
-            if not util.git_branch_exists('ceph-qa-suite', suite_branch):
-                exc = BranchNotFoundError(suite_branch, 'ceph-qa-suite.git')
+            if not util.git_branch_exists(self.suite_repo_name, suite_branch):
+                exc = BranchNotFoundError(
+                    suite_branch,
+                    '%s.git' % self.suite_repo_name,
+                )
                 util.schedule_fail(message=str(exc), name=self.name)
         elif not suite_branch:
             # Decide what branch of ceph-qa-suite to use
-            if util.git_branch_exists('ceph-qa-suite', ceph_branch):
+            if util.git_branch_exists(self.suite_repo_name, ceph_branch):
                 suite_branch = ceph_branch
             else:
                 log.info(
-                    "branch {0} not in ceph-qa-suite.git; will use master for"
-                    " ceph-qa-suite".format(ceph_branch))
+                    "branch {0} not in {1}.git; will use master for"
+                    " {1}".format(ceph_branch, self.suite_repo_name)
+                )
                 suite_branch = 'master'
         return suite_branch
 
     def choose_suite_hash(self, suite_branch):
-        suite_hash = util.git_ls_remote('ceph-qa-suite', suite_branch)
+        suite_hash = util.git_ls_remote(self.suite_repo_name, suite_branch)
         if not suite_hash:
-            exc = BranchNotFoundError(suite_branch, 'ceph-qa-suite.git')
+            exc = BranchNotFoundError(
+                suite_branch,
+                '%s.git' % self.suite_repo_name
+            )
             util.schedule_fail(message=str(exc), name=self.name)
-        log.info("ceph-qa-suite branch: %s %s", suite_branch, suite_hash)
+        log.info(
+            "%s branch: %s %s",
+            self.suite_repo_name,
+            suite_branch,
+            suite_hash,
+        )
         return suite_hash
 
     def build_base_config(self):
@@ -417,12 +451,22 @@ class Run(object):
         arch = util.get_arch(self.base_config.machine_type)
         suite_name = self.base_config.suite
         suite_path = os.path.join(
-            self.suite_repo_path, 'suites',
-            self.base_config.suite.replace(':', '/'))
+            self.suite_repo_path,
+            self.colocated_suite_path,
+            'suites',
+            self.base_config.suite.replace(':', '/')
+        )
         log.debug('Suite %s in %s' % (suite_name, suite_path))
         configs = [
-            (combine_path(suite_name, item[0]), item[1]) for item in
-            build_matrix(suite_path, subset=self.args.subset)
+            (combine_path(
+                combine_path(suite_name, self.colocated_suite_path),
+                item[0]),
+                item[1],
+             ) for item in
+            build_matrix(
+                suite_path,
+                subset=self.args.subset,
+            )
         ]
         log.info('Suite %s in %s generated %d jobs (not yet filtered)' % (
             suite_name, suite_path, len(configs)))

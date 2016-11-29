@@ -24,7 +24,7 @@ from ..task.install import get_flavor
 log = logging.getLogger(__name__)
 
 
-def fetch_repos(branch, test_name):
+def fetch_repos(branch, test_name, colocated_suite=None):
     """
     Fetch the suite repo (and also the teuthology repo) so that we can use it
     to build jobs. Repos are stored in ~/src/.
@@ -35,7 +35,12 @@ def fetch_repos(branch, test_name):
     for test scheduling, regardless of what teuthology branch is requested for
     testing.
 
-    :returns: The path to the suite repo on disk
+    :param branch:           The branch to fetch
+    :param test_name:        The name of the test; used only for error
+                             reporting
+    :param colocated_suite:  Whether to fetch the ceph repo instead of
+                             ceph-qa-suite
+    :returns:                The path to the suite repo on disk
     """
     try:
         # When a user is scheduling a test run from their own copy of
@@ -44,7 +49,10 @@ def fetch_repos(branch, test_name):
             # We use teuthology's master branch in all cases right now
             if config.teuthology_path is None:
                 fetch_teuthology('master')
-        suite_repo_path = fetch_qa_suite(branch)
+        suite_repo_path = fetch_qa_suite(
+            branch,
+            colocated_suite=colocated_suite
+        )
     except BranchNotFoundError as exc:
         schedule_fail(message=str(exc), name=test_name)
     return suite_repo_path

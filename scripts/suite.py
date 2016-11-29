@@ -64,6 +64,11 @@ Standard arguments:
                               <suite_branch> to be ignored for scheduling
                               purposes, but it will still be used for test
                               running.
+  -C, --colocated-suite <colocated_suite>
+                              If set, look for suites and tasks in the
+                              project's main repo under this relative path,
+                              e.g. 'qa'.
+                              [default: False]
 
 Scheduler arguments:
   --owner <owner>             Job owner
