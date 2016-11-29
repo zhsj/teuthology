@@ -95,8 +95,17 @@ def fetch_tasks_if_needed(job_config):
 
     ceph_branch = job_config.get('branch', 'master')
     suite_branch = job_config.get('suite_branch', ceph_branch)
-    suite_path = fetch_qa_suite(suite_branch)
-    sys.path.insert(1, suite_path)
+    suite_path = fetch_qa_suite(
+        suite_branch,
+        colocated_suite=job_config.get('colocated_suite', False),
+    )
+    sys.path.insert(
+        1,
+        os.path.join(
+            job_config.get('colocated_suite_path', ''),
+            suite_path,
+        ),
+    )
     return suite_path
 
 
