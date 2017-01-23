@@ -1,3 +1,4 @@
+raise Exception("no soup for you!")
 from gevent import monkey
 monkey.patch_all(
     dns=False,
