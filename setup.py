@@ -49,7 +49,7 @@ setup(
         'Topic :: System :: Filesystems',
     ],
     install_requires=['setuptools',
-                      'gevent',
+                      'gevent < 1.2',
                       # For teuthology-coverage
                       'MySQL-python == 1.2.3',
                       'PyYAML',
