@@ -624,7 +624,7 @@ class TestShamanProject(TestBuilderProject):
             patch('teuthology.packaging._get_config_value_for_remote')
         self.m_get_config_value = self.p_get_config_value.start()
         self.m_get_config_value.return_value = None
-        self.p_get = patch('requests.get')
+        self.p_get = patch('requests.Session.get')
         self.m_get = self.p_get.start()
 
     def teardown(self):

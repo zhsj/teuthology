@@ -854,7 +854,7 @@ class ShamanProject(GitbuilderProject):
     def _search(self):
         uri = self._search_uri
         log.debug("Querying %s", uri)
-        resp = requests.get(
+        resp = self.http_session.get(
             uri,
             headers={'content-type': 'application/json'},
         )
@@ -884,6 +884,18 @@ class ShamanProject(GitbuilderProject):
             'search',
         ) + '?%s' % req_str
         return uri
+
+    @property
+    def http_session(self):
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            max_retries=requests.packages.urllib3.util.Retry(
+                total=5,
+            ),
+        )
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
 
     def _tag_to_sha1(self):
         """
@@ -959,7 +971,7 @@ class ShamanProject(GitbuilderProject):
         )
 
     def _get_repo(self):
-        resp = requests.get(self.repo_url)
+        resp = self.http_session.get(self.repo_url)
         resp.raise_for_status()
         return resp.text
 
