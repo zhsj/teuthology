@@ -7,7 +7,7 @@ class DaemonGroup(object):
     """
     Collection of daemon state instances
     """
-    def __init__(self, use_systemd=False):
+    def __init__(self, use_systemd=True):
         """
         self.daemons is a dictionary indexed by role.  Each entry is a
         dictionary of DaemonState values indexed by an id parameter.
