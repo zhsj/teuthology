@@ -413,6 +413,8 @@ class CephLab(Ansible):
         if 'repo' not in config:
             config['repo'] = os.path.join(teuth_config.ceph_git_base_url,
                                           'ceph-cm-ansible.git')
+            if teuth_config.ceph_cm_git_url:
+                config['repo'] = teuth_config.ceph_cm_git_url
         super(CephLab, self).__init__(ctx, config)
 
     def begin(self):

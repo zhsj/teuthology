@@ -162,11 +162,11 @@ class Downburst(object):
         mac_address = self.status['mac_address']
 
         file_info = {
-            'disk-size': '100G',
+            'disk-size': '20G',
             'ram': '3.8G',
             'cpus': 1,
             'networks': [
-                {'source': 'front', 'mac': mac_address}],
+                {'source': 'default', 'mac': mac_address}],
             'distro': os_type,
             'distroversion': self.os_version,
             'additional-disks': 4,
@@ -208,6 +208,19 @@ class Downburst(object):
         # to install 'python' to get python2.7, which ansible needs
         if os_type in ('ubuntu', 'fedora'):
             user_info['packages'].append('python')
+
+        if os_type in ('debian'):
+            user_info['packages'].extend(['python', 'eject', 'gnupg2'])
+            # restart network to resend hostname to DHCP server
+            user_info['runcmd'].extend([
+                ['invoke-rc.d', 'networking', 'restart'],
+            ])
+            if self.os_version == 'unstable':
+                user_info['apt'] = {
+                    'sources_list': 'deb http://deb.debian.org/debian unstable main\n', # noqa
+                }
+                user_info['package_upgrade'] = True
+
         user_fd = tempfile.NamedTemporaryFile(delete=False)
         user_str = "#cloud-config\n" + yaml.safe_dump(user_info)
         user_fd.write(user_str)

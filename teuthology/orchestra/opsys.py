@@ -12,6 +12,10 @@ DISTRO_CODENAME_MAP = {
     "debian": {
         "7": "wheezy",
         "8": "jessie",
+        "9": "streth",
+        "10": "buster",
+        "testing": "testing",
+        "unstable": "unstable",
     },
     "rhel": {
         "7": "maipo",
